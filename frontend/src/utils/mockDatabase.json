@@ -1,0 +1,236 @@
+{
+  "users": [
+    {
+      "_id": "user123",
+      "username": "Test User",
+      "email": "test@example.com",
+      "passwordHash": "hashed_password_123",
+      "avatarUrl": "https://i.pravatar.cc/150?u=test@example.com",
+      "bio": "Game thủ yêu thích các tựa game RPG và khám phá thế giới mở.",
+      "savedPosts": ["post1", "post3"],
+      "createdAt": "2023-07-15T10:00:00Z",
+      "updatedAt": "2024-01-15T10:00:00Z"
+    },
+    {
+      "_id": "user1",
+      "username": "GameMaster",
+      "email": "gamemaster@example.com",
+      "passwordHash": "hashed_password_456",
+      "avatarUrl": "https://i.pravatar.cc/150?u=user1",
+      "bio": "Đánh giá game chuyên nghiệp với hơn 5 năm kinh nghiệm. Chuyên về các thể loại Action RPG và Souls-like.",
+      "savedPosts": ["post2"],
+      "createdAt": "2020-01-15T10:00:00Z",
+      "updatedAt": "2024-01-15T10:00:00Z"
+    },
+    {
+      "_id": "user2",
+      "username": "RPG Fan",
+      "email": "rpgfan@example.com",
+      "passwordHash": "hashed_password_789",
+      "avatarUrl": "https://i.pravatar.cc/150?u=user2",
+      "bio": "Yêu thích thể loại RPG và fantasy. Đặc biệt quan tâm đến cốt truyện và phát triển nhân vật.",
+      "savedPosts": [],
+      "createdAt": "2021-03-20T10:00:00Z",
+      "updatedAt": "2024-01-15T10:00:00Z"
+    },
+    {
+      "_id": "user3",
+      "username": "Indie Explorer",
+      "email": "indie@example.com",
+      "passwordHash": "hashed_password_101",
+      "avatarUrl": "https://i.pravatar.cc/150?u=user3",
+      "bio": "Khám phá các tựa indie hay và độc đáo. Thích những game có cơ chế sáng tạo.",
+      "savedPosts": ["post1"],
+      "createdAt": "2022-06-10T10:00:00Z",
+      "updatedAt": "2024-01-15T10:00:00Z"
+    },
+    {
+      "_id": "user4",
+      "username": "Horror Master",
+      "email": "horror@example.com",
+      "passwordHash": "hashed_password_102",
+      "avatarUrl": "https://i.pravatar.cc/150?u=user4",
+      "bio": "Chuyên gia về thể loại kinh dị và thriller. Đánh giá các game horror từ indie đến AAA.",
+      "savedPosts": [],
+      "createdAt": "2021-10-05T10:00:00Z",
+      "updatedAt": "2024-01-15T10:00:00Z"
+    }
+  ],
+  "posts": [
+    {
+      "_id": "post1",
+      "authorId": "user1",
+      "title": "Đánh giá Elden Ring - Siêu phẩm thế giới mở đỉnh cao",
+      "content": "# Elden Ring: Một kiệt tác của FromSoftware\n\n**Elden Ring** không chỉ là một trò chơi, mà là một trải nghiệm nghệ thuật đỉnh cao. Với thế giới mở rộng lớn, hệ thống combat sâu sắc và câu chuyện bí ẩn, game đã tạo nên một chuẩn mực mới cho thể loại Action RPG.\n\n## Điểm nổi bật:\n- Thế giới mở khổng lồ với nhiều bí mật\n- Combat system tinh tế và thử thách\n- Đồ họa tuyệt đẹp\n- Câu chuyện sâu sắc\n\n**Kết luận:** Một trong những game hay nhất năm 2022!",
+      "coverImageUrl": "https://i.imgur.com/L13a3n5.jpeg",
+      "tags": ["Action RPG", "Open World", "Difficult", "FromSoftware"],
+      "rating": 9,
+      "views": 2450,
+      "likes": ["user2", "user3", "user123"],
+      "savedBy": ["user123", "user3"],
+      "createdAt": "2023-02-15T10:30:00Z",
+      "updatedAt": "2023-02-15T10:30:00Z"
+    },
+    {
+      "_id": "post2",
+      "authorId": "user2",
+      "title": "Cyberpunk 2077 - Phiên bản 2.0 có đáng chơi?",
+      "content": "# Cyberpunk 2077: Sự hồi sinh sau thảm họa\n\nSau 3 năm kể từ ngày ra mắt đầy tranh cãi, **Cyberpunk 2077** đã trở lại với phiên bản 2.0 và DLC Phantom Liberty. Liệu có đủ để cứu vãn danh tiếng?\n\n## Những cải tiến đáng chú ý:\n- Hệ thống AI được cải thiện đáng kể\n- Combat mượt mà hơn\n- Ít bug hơn (nhưng vẫn còn)\n- Phantom Liberty DLC xuất sắc\n\n## Nhược điểm còn tồn tại:\n- Vẫn còn một số lỗi nhỏ\n- Tối ưu hóa chưa hoàn hảo\n\n**Verdict:** Đáng để thử lại, đặc biệt nếu bạn chưa từng chơi.",
+      "coverImageUrl": "https://i.imgur.com/kS5A5oE.jpeg",
+      "tags": ["Cyberpunk", "RPG", "Night City", "CD Projekt Red"],
+      "rating": 8,
+      "views": 1890,
+      "likes": ["user1", "user3"],
+      "savedBy": ["user1"],
+      "createdAt": "2023-09-20T16:45:00Z",
+      "updatedAt": "2023-09-20T16:45:00Z"
+    },
+    {
+      "_id": "post3",
+      "authorId": "user3",
+      "title": "Bambi: The Reckoning - Tựa game indie đáng sợ nhất năm",
+      "content": "# Bambi: The Reckoning - Khi tuổi thơ trở thành ác mộng\n\n**Bambi: The Reckoning** là một tựa game horror indie độc đáo, lấy cảm hứng từ nhân vật Bambi quen thuộc nhưng biến tấu thành phiên bản kinh dị.\n\n## Gameplay:\n- Survival horror với yếu tố stealth\n- Atmosphere đáng sợ\n- Câu chuyện twisted và dark\n\n## Đánh giá:\n- **Ưu điểm:** Sáng tạo, độc đáo, scary\n- **Nhược điểm:** Hơi ngắn, một số bug\n\n**Rating:** 5/10 - Chỉ dành cho fan của horror games.",
+      "coverImageUrl": "https://i.imgur.com/39w9FxL.jpeg",
+      "tags": ["Indie", "Horror", "Psychological", "Meme"],
+      "rating": 5,
+      "views": 1200,
+      "likes": ["user4"],
+      "savedBy": ["user123"],
+      "createdAt": "2023-11-10T12:20:00Z",
+      "updatedAt": "2023-11-10T12:20:00Z"
+    },
+    {
+      "_id": "post4",
+      "authorId": "user1",
+      "title": "The Witcher 3: Wild Hunt - Vẫn là kiệt tác sau 8 năm",
+      "content": "# The Witcher 3: Timeless Masterpiece\n\n8 năm sau khi ra mắt, **The Witcher 3: Wild Hunt** vẫn giữ vững vị thế là một trong những RPG hay nhất mọi thời đại.\n\n## Tại sao vẫn đáng chơi:\n- Câu chuyện sâu sắc và cảm động\n- Thế giới sống động\n- Character development xuất sắc\n- Side quests chất lượng cao\n\n**Kết luận:** Must-play cho mọi game thủ!",
+      "coverImageUrl": "https://media.rawg.io/media/games/618/618c2031a0701f384e72d7f4b6ab045e.jpg",
+      "tags": ["RPG", "Fantasy", "Story Rich", "Open World"],
+      "rating": 10,
+      "views": 3200,
+      "likes": ["user2", "user3", "user123", "user4"],
+      "savedBy": ["user2", "user123"],
+      "createdAt": "2023-12-01T14:00:00Z",
+      "updatedAt": "2023-12-01T14:00:00Z"
+    }
+  ],
+  "comments": [
+    {
+      "_id": "comment1",
+      "postId": "post1",
+      "authorId": "user2",
+      "content": "Đánh giá rất chi tiết! Mình cũng đang chơi Elden Ring và thấy game thực sự tuyệt vời. Combat system khó nhưng rất thỏa mãn khi master được.",
+      "likes": ["user1", "user3"],
+      "dislikes": [],
+      "createdAt": "2023-02-16T08:15:00Z"
+    },
+    {
+      "_id": "comment2",
+      "postId": "post1",
+      "authorId": "user3",
+      "content": "Mình hơi struggle với boss đầu tiên, có tips gì không bạn?",
+      "likes": ["user2"],
+      "dislikes": [],
+      "createdAt": "2023-02-16T10:30:00Z"
+    },
+    {
+      "_id": "comment3",
+      "postId": "post2",
+      "authorId": "user1",
+      "content": "Cyberpunk 2.0 thực sự đã cải thiện rất nhiều. Phantom Liberty DLC cũng rất đáng tiền!",
+      "likes": ["user2", "user3"],
+      "dislikes": [],
+      "createdAt": "2023-09-21T09:00:00Z"
+    },
+    {
+      "_id": "comment4",
+      "postId": "post3",
+      "authorId": "user4",
+      "content": "Game này creepy thật, nhưng mình thích concept này. Indie horror games đang ngày càng sáng tạo hơn.",
+      "likes": ["user3"],
+      "dislikes": [],
+      "createdAt": "2023-11-11T15:45:00Z"
+    }
+  ],
+  "notifications": [
+    {
+      "_id": "notif1",
+      "recipientId": "user1",
+      "senderId": "user2",
+      "type": "like",
+      "postId": "post1",
+      "commentId": null,
+      "isRead": false,
+      "createdAt": "2023-02-16T08:00:00Z"
+    },
+    {
+      "_id": "notif2",
+      "recipientId": "user1",
+      "senderId": "user2",
+      "type": "comment",
+      "postId": "post1",
+      "commentId": "comment1",
+      "isRead": true,
+      "createdAt": "2023-02-16T08:15:00Z"
+    },
+    {
+      "_id": "notif3",
+      "recipientId": "user2",
+      "senderId": "user1",
+      "type": "likeComment",
+      "postId": "post1",
+      "commentId": "comment1",
+      "isRead": false,
+      "createdAt": "2023-02-16T09:00:00Z"
+    }
+  ],
+  "ratings": [
+    {
+      "_id": "rating1",
+      "postId": "post1",
+      "userId": "user2",
+      "score": 9,
+      "comment": "Tuyệt vời, đáng để chơi!",
+      "createdAt": "2023-02-16T08:20:00Z",
+      "updatedAt": "2023-02-16T08:20:00Z"
+    },
+    {
+      "_id": "rating2",
+      "postId": "post1",
+      "userId": "user3",
+      "score": 8,
+      "comment": "Hay nhưng hơi khó với newbie",
+      "createdAt": "2023-02-16T10:35:00Z",
+      "updatedAt": "2023-02-16T10:35:00Z"
+    },
+    {
+      "_id": "rating3",
+      "postId": "post2",
+      "userId": "user1",
+      "score": 8,
+      "comment": "Đã cải thiện nhiều so với lúc đầu",
+      "createdAt": "2023-09-21T09:05:00Z",
+      "updatedAt": "2023-09-21T09:05:00Z"
+    }
+  ],
+  "follows": [
+    {
+      "_id": "follow1",
+      "followerId": "user123",
+      "followingId": "user1",
+      "createdAt": "2023-08-01T10:00:00Z"
+    },
+    {
+      "_id": "follow2",
+      "followerId": "user123",
+      "followingId": "user2",
+      "createdAt": "2023-08-15T14:30:00Z"
+    },
+    {
+      "_id": "follow3",
+      "followerId": "user2",
+      "followingId": "user1",
+      "createdAt": "2023-09-01T11:00:00Z"
+    }
+  ]
+}

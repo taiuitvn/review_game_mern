@@ -1,0 +1,99 @@
+import React from 'react';
+import data from '../../utils/mockData.json';
+import { Link } from 'react-router-dom';
+import { FaStar, FaUser, FaClock } from 'react-icons/fa';
+
+const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
+  // Load từ JSON
+  const suggestedReviews = data.suggestedReviews.filter(review => review._id !== currentReviewId);
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+        💡 Bài viết liên quan
+      </h3>
+
+      <div className="space-y-4">
+        {suggestedReviews.slice(0, 3).map(review => (
+          <Link
+            key={review._id}
+            to={`/review/${review._id}`}
+            className="block group"
+          >
+            <div className="flex gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors border border-gray-100 group-hover:border-gray-200">
+              {/* Game Image */}
+              <div className="flex-shrink-0">
+                <img
+                  src={review.gameImage}
+                  alt={review.gameName}
+                  className="w-16 h-16 object-cover rounded-lg"
+                />
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-2 mb-1">
+                  {review.title}
+                </h4>
+
+                <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                  {review.description}
+                </p>
+
+                {/* Meta info */}
+                <div className="flex items-center gap-3 text-xs text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <FaUser />
+                    <span>{review.author.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <FaClock />
+                    <span>{new Date(review.createdAt).toLocaleDateString('vi-VN')}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <FaStar className="text-yellow-400" />
+                    <span>{review.score}/10</span>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div className="flex gap-1 mt-2">
+                  {review.tags.slice(0, 2).map(tag => (
+                    <span
+                      key={tag}
+                      className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                  {review.tags.length > 2 && (
+                    <span className="text-xs text-gray-400">+{review.tags.length - 2}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Score Badge */}
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  {review.score}
+                </div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* View more button */}
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <Link
+          to="/trending"
+          className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors text-center block"
+        >
+          Xem thêm bài viết
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+export default SuggestedReviews;

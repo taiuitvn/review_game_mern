@@ -1,0 +1,173 @@
+{
+  "reviews": [
+    {
+      "_id": "1",
+      "title": "Đánh giá Elden Ring - Siêu phẩm thế giới mở đỉnh cao",
+      "gameName": "Elden Ring",
+      "gameImage": "https://i.imgur.com/L13a3n5.jpeg",
+      "score": 9,
+      "content": "\n      <h2>Giới thiệu về Elden Ring</h2>\n      <p>Elden Ring là một siêu phẩm từ FromSoftware, mang đậm dấu ấn của series Dark Souls nhưng với quy mô lớn hơn nhiều. Trò chơi mang đến trải nghiệm thế giới mở đầy thử thách và hấp dẫn.</p>\n\n      <h3>Điểm mạnh:</h3>\n      <ul>\n        <li><strong>Thế giới mở khổng lồ:</strong> Map rộng lớn với nhiều vùng đất đa dạng</li>\n        <li><strong>Hệ thống chiến đấu hoàn hảo:</strong> Giữ được sự khó khăn đặc trưng của FromSoftware</li>\n        <li><strong>Nhạc nền xuất sắc:</strong> Âm nhạc của FromSoftware và Bandai Namco luôn là điểm nhấn</li>\n        <li><strong>Cốt truyện sâu sắc:</strong> Lấy cảm hứng từ thần thoại Bắc Âu và các tác phẩm của George R.R. Martin</li>\n      </ul>\n\n      <h3>Điểm yếu:</h3>\n      <ul>\n        <li><strong>Độ khó cao:</strong> Có thể khiến nhiều người bỏ cuộc</li>\n        <li><strong>Không có hướng dẫn rõ ràng:</strong> Người mới chơi sẽ rất khó khăn</li>\n      </ul>\n\n      <p>Tổng thể, Elden Ring xứng đáng là một trong những game hay nhất năm 2022 và là một siêu phẩm không thể bỏ qua nếu bạn là fan của thể loại Action RPG.</p>\n    ",
+      "author": {
+        "id": "user1",
+        "name": "GameMaster",
+        "avatar": "https://i.pravatar.cc/150?u=user1",
+        "isVerified": true,
+        "totalReviews": 45,
+        "followers": 1250
+      },
+      "tags": ["Action RPG", "Open World", "Difficult", "FromSoftware"],
+      "genres": ["Action", "RPG"],
+      "platforms": ["PC", "PS5", "Xbox Series"],
+      "createdAt": "2023-02-15T10:30:00Z",
+      "updatedAt": "2023-02-15T10:30:00Z",
+      "views": 2450,
+      "likes": 152,
+      "saves": 89,
+      "comments": [
+        {
+          "_id": "c1",
+          "text": "Review rất chi tiết! Tôi cũng đồng ý đây là một siêu phẩm.",
+          "author": { "name": "RPG Fan", "avatar": "https://i.pravatar.cc/150?u=rpgfan" },
+          "createdAt": "2023-02-16T14:20:00Z",
+          "likes": 12,
+          "dislikes": 0,
+          "replies": []
+        },
+        {
+          "_id": "c2",
+          "text": "Đồng ý với nhận xét về độ khó. Game này thực sự thử thách.",
+          "author": { "name": "Hardcore Gamer", "avatar": "https://i.pravatar.cc/150?u=hardcore" },
+          "createdAt": "2023-02-17T09:15:00Z",
+          "likes": 8,
+          "dislikes": 1,
+          "replies": []
+        }
+      ]
+    },
+    {
+      "_id": "2",
+      "title": "Cyberpunk 2077 - Phiên bản 2.0 có đáng chơi?",
+      "gameName": "Cyberpunk 2077",
+      "gameImage": "https://i.imgur.com/kS5A5oE.jpeg",
+      "score": 8,
+      "content": "\n      <h2>Cyberpunk 2077 sau bản cập nhật 2.0</h2>\n      <p>Sau nhiều năm chờ đợi, Cyberpunk 2077 cuối cùng cũng trở thành một tựa game hoàn chỉnh với bản cập nhật 2.0. Hãy cùng điểm qua những thay đổi và liệu game có đáng chơi không.</p>\n\n      <h3>Những cải tiến đáng chú ý:</h3>\n      <ul>\n        <li><strong>Performance ổn định:</strong> Không còn crash, frame rate mượt mà</li>\n        <li><strong>Nội dung bổ sung phong phú:</strong> Nhiều quest mới, ending mới</li>\n        <li><strong>Hệ thống chiến đấu cải thiện:</strong> Cảm giác chiến đấu tốt hơn nhiều</li>\n        <li><strong>Visual nâng cấp:</strong> Ray tracing và các hiệu ứng đẹp mắt</li>\n      </ul>\n\n      <h3>Vẫn còn những hạn chế:</h3>\n      <ul>\n        <li><strong>Cốt truyện chưa thực sự xuất sắc:</strong> Vẫn còn nhiều lỗ hổng</li>\n        <li><strong>Gameplay có thể nhàm chán:</strong> Ở một số đoạn</li>\n      </ul>\n\n      <p>Nếu bạn đã chơi bản cũ thì việc nâng cấp lên 2.0 là hoàn toàn xứng đáng. Còn nếu chưa chơi thì đây là thời điểm tốt nhất để trải nghiệm Cyberpunk 2077.</p>\n    ",
+      "author": {
+        "id": "user2",
+        "name": "Tech Reviewer",
+        "avatar": "https://i.pravatar.cc/150?u=techreviewer",
+        "isVerified": true,
+        "totalReviews": 32,
+        "followers": 890
+      },
+      "tags": ["Cyberpunk", "RPG", "Night City", "CD Projekt Red"],
+      "genres": ["Action", "RPG"],
+      "platforms": ["PC", "PS5", "Xbox Series"],
+      "createdAt": "2023-09-20T16:45:00Z",
+      "updatedAt": "2023-09-20T16:45:00Z",
+      "views": 1890,
+      "likes": 98,
+      "saves": 67,
+      "comments": []
+    },
+    {
+      "_id": "3",
+      "title": "Bambi: The Reckoning - Tựa game indie đáng sợ nhất năm",
+      "gameName": "Bambi: The Reckoning",
+      "gameImage": "https://i.imgur.com/39w9FxL.jpeg",
+      "score": 5,
+      "content": "\n      <h2>Bambi: The Reckoning - Khi meme trở thành game</h2>\n      <p>Bambi: The Reckoning là một tựa game indie lấy cảm hứng từ meme \"Bambi sleep experiment\" nổi tiếng trên Reddit. Game mang đến trải nghiệm kinh dị đầy bất ngờ.</p>\n\n      <h3>Điểm tích cực:</h3>\n      <ul>\n        <li><strong>Ý tưởng sáng tạo:</strong> Lấy cảm hứng từ meme nổi tiếng</li>\n        <li><strong>Âm thanh hiệu quả:</strong> Nhạc nền và sound design tốt</li>\n        <li><strong>Thời lượng phù hợp:</strong> Khoảng 1-2 tiếng chơi</li>\n      </ul>\n\n      <h3>Điểm trừ:</h3>\n      <ul>\n        <li><strong>Cốt truyện khó hiểu:</strong> Nhiều người chơi không hiểu ý nghĩa</li>\n        <li><strong>Gameplay đơn giản:</strong> Chủ yếu là exploration</li>\n        <li><strong>Không phù hợp với trẻ em:</strong> Nội dung rất dark</li>\n      </ul>\n\n      <p>Dù có nhiều ý kiến trái chiều, Bambi: The Reckoning vẫn là một tựa game đáng trải nghiệm ít nhất một lần nếu bạn thích thể loại kinh dị tâm lý.</p>\n    ",
+      "author": {
+        "id": "user3",
+        "name": "Indie Explorer",
+        "avatar": "https://i.pravatar.cc/150?u=indieexplorer",
+        "isVerified": false,
+        "totalReviews": 28,
+        "followers": 450
+      },
+      "tags": ["Indie", "Horror", "Psychological", "Meme"],
+      "genres": ["Adventure", "Horror"],
+      "platforms": ["PC", "PS5"],
+      "createdAt": "2023-11-10T12:20:00Z",
+      "updatedAt": "2023-11-10T12:20:00Z",
+      "views": 1200,
+      "likes": 67,
+      "saves": 34,
+      "comments": []
+    }
+  ],
+  "trendingReviews": [
+    {"_id":"1","title":"Elden Ring Review","description":"An evolution of the Souls formula, creating one of the best open-world games ever. The level design is masterful, the boss fights are legendary, and the world-building is unparalleled.","gameImage":"https://i.imgur.com/L13a3n5.jpeg","author":{"name":"IGN Staff"},"genres":["Action","RPG"],"platforms":["PC","PS5","Xbox Series"],"score":10,"likes":{"length":2500},"views":15000,"comments":{"length":180},"timestamp":"1h ago"},
+    {"_id":"2","title":"Stray Review","description":"A charming, beautiful, and thoughtful cat-based adventure. The art direction is stunning, the music is memorable, and the story touches your heart.","gameImage":"https://i.imgur.com/5lGZ8gB.jpeg","author":{"name":"JANE DOE"},"genres":["Adventure","Indie"],"platforms":["PC","PS5","PS4"],"score":9,"likes":{"length":1200},"views":8500,"comments":{"length":95},"timestamp":"2h ago"},
+    {"_id":"3","title":"Cyberpunk 2077: Phantom Liberty","description":"A thrilling spy story and a rebuilt game make this a must-play. The new district is fantastic, the main quest is engaging, and the side content is worth exploring.","gameImage":"https://i.imgur.com/kS5A5oE.jpeg","author":{"name":"TRAVIS NORTHUP"},"genres":["Action","RPG"],"platforms":["PC","PS5","Xbox Series"],"score":9,"likes":{"length":880},"views":6200,"comments":{"length":67},"timestamp":"3h ago"},
+    {"_id":"4","title":"Hades II Early Access","description":"A masterful roguelike that builds upon its predecessor in every way. The new protagonist is compelling, the combat feels refined, and the narrative is more personal.","gameImage":"https://i.imgur.com/yU4a3OA.jpeg","author":{"name":"MARK KNAPP"},"genres":["Action","Indie"],"platforms":["PC"],"score":9,"likes":{"length":950},"views":5800,"comments":{"length":78},"timestamp":"4h ago"},
+    {"_id":"5","title":"Baldur's Gate 3: Honor Mode","description":"The ultimate test of tactical mastery. Every decision matters, every encounter is challenging, and every victory feels earned.","gameImage":"https://i.imgur.com/placeholder1.jpeg","author":{"name":"RPG FANATIC"},"genres":["RPG","Strategy"],"platforms":["PC","PS5"],"score":10,"likes":{"length":720},"views":4500,"comments":{"length":52},"timestamp":"5h ago"},
+    {"_id":"6","title":"Alan Wake 2 Review","description":"A psychological horror masterpiece that combines narrative brilliance with atmospheric tension. The story is mind-bending, the scares are genuine.","gameImage":"https://i.imgur.com/placeholder2.jpeg","author":{"name":"HORROR EXPERT"},"genres":["Horror","Adventure"],"platforms":["PC","PS5","Xbox Series"],"score":9,"likes":{"length":680},"views":4100,"comments":{"length":43},"timestamp":"6h ago"}
+  ],
+  "search": {
+    "reviews": [
+      {"_id":"1","title":"Cyberpunk 2077 Review","description":"Sau nhiều bản cập nhật, Cyberpunk 2077 đã trở thành một trong những game xuất sắc nhất.","gameImage":"https://i.imgur.com/kS5A5oE.jpeg","author":{"name":"GameMaster","id":"user1"},"genres":["Action","RPG"],"score":9,"likes":{"length":1250},"views":8500,"comments":{"length":89},"timestamp":"2d ago","tags":["RPG","Open World","Night City"]},
+      {"_id":"2","title":"The Witcher 3: Wild Hunt","description":"Tuyệt phẩm RPG với cốt truyện tuyệt vời và thế giới game sống động.","gameImage":"https://i.imgur.com/placeholder3.jpeg","author":{"name":"RPG Fan","id":"user2"},"genres":["RPG","Fantasy"],"score":10,"likes":{"length":2100},"views":15200,"comments":{"length":156},"timestamp":"1w ago","tags":["RPG","Fantasy","Story Rich"]},
+      {"_id":"3","title":"Elden Ring Review","description":"Kế thừa tinh hoa của series Souls với thế giới mở rộng lớn.","gameImage":"https://i.imgur.com/L13a3n5.jpeg","author":{"name":"Souls Veteran","id":"user3"},"genres":["Action","RPG"],"score":10,"likes":{"length":1800},"views":12300,"comments":{"length":134},"timestamp":"3d ago","tags":["Action","RPG","Difficult","Open World"]}
+    ],
+    "games": [
+      {"id":"game1","name":"Cyberpunk 2077","background_image":"https://i.imgur.com/kS5A5oE.jpeg","released":"2020-12-10","rating":4.5,"genres":["Action","RPG"],"platforms":["PC","PlayStation","Xbox"]},
+      {"id":"game2","name":"The Witcher 3: Wild Hunt","background_image":"https://i.imgur.com/placeholder3.jpeg","released":"2015-05-19","rating":4.8,"genres":["RPG","Fantasy"],"platforms":["PC","PlayStation","Xbox","Nintendo Switch"]},
+      {"id":"game3","name":"Elden Ring","background_image":"https://i.imgur.com/L13a3n5.jpeg","released":"2022-02-25","rating":4.7,"genres":["Action","RPG"],"platforms":["PC","PlayStation","Xbox"]}
+    ],
+    "users": [
+      {"id":"user1","username":"GameMaster","avatar":"https://i.pravatar.cc/150?u=user1","bio":"Đánh giá game chuyên nghiệp với 500+ bài viết","followers":1250,"reviewsCount":89},
+      {"id":"user2","username":"RPG Fan","avatar":"https://i.pravatar.cc/150?u=user2","bio":"Yêu thích thể loại RPG và fantasy","followers":890,"reviewsCount":67}
+    ]
+  },
+  "suggestedReviews": [
+    {"_id":"1","title":"The Witcher 3: Wild Hunt - Kiệt tác RPG","gameImage":"https://media.rawg.io/media/games/618/618c2031a0701f384e72d7f4b6ab045e.jpg","gameName":"The Witcher 3","score":10,"author":{"name":"GameMaster","avatar":"https://i.pravatar.cc/150?img=1","id":"user1"},"createdAt":"2024-01-15T10:00:00Z","tags":["rpg","open-world","fantasy"],"description":"Một trong những game RPG xuất sắc nhất mọi thời đại..."},
+    {"_id":"2","title":"Cyberpunk 2077 - Phục hưng từ thất bại","gameImage":"https://media.rawg.io/media/games/26d/26d4437715bee60138dab4a7c95ea248.jpg","gameName":"Cyberpunk 2077","score":8,"author":{"name":"TechReviewer","avatar":"https://i.pravatar.cc/150?img=2","id":"user2"},"createdAt":"2024-01-10T14:30:00Z","tags":["cyberpunk","rpg","action"],"description":"Sau nhiều update, Cyberpunk 2077 đã trở thành một kiệt tác..."},
+    {"_id":"3","title":"Elden Ring - Thử thách đỉnh cao","gameImage":"https://media.rawg.io/media/games/5ec/5ecac5cb026ec26a56efcc546364e348.jpg","gameName":"Elden Ring","score":9,"author":{"name":"AdventureSeeker","avatar":"https://i.pravatar.cc/150?img=3","id":"user3"},"createdAt":"2024-01-08T09:15:00Z","tags":["action","rpg","difficult"],"description":"Elden Ring mang đến trải nghiệm Souls-like đỉnh cao..."}
+  ],
+  "profile": {
+    "postedReviews": [
+      {"_id":"1","title":"Đánh giá Elden Ring","gameImage":"https://i.imgur.com/L13a3n5.jpeg","score":9,"description":"Một siêu phẩm thế giới mở...","author":{"name":"Test User"},"likes":{"length":152},"timestamp":"2d ago"},
+      {"_id":"2","title":"Cyberpunk 2077 có đáng chơi?","gameImage":"https://i.imgur.com/kS5A5oE.jpeg","score":8,"description":"Bản cập nhật 2.0 đã thay đổi mọi thứ.","author":{"name":"Test User"},"likes":{"length":98},"timestamp":"5d ago"}
+    ],
+    "savedReviews": [
+      {"_id":"3","title":"Bambi: The Reckoning Review","gameImage":"https://i.imgur.com/39w9FxL.jpeg","score":5,"description":"An audaciously bloody but distractingly humorless creature feature.","author":{"name":"MATT DONATO"},"likes":{"length":67},"timestamp":"3d ago"}
+    ],
+    "followingUsers": [
+      {"id":"user1","username":"GameMaster","avatar":"https://i.pravatar.cc/150?u=user1","bio":"Đánh giá game chuyên nghiệp với hơn 5 năm kinh nghiệm. Chuyên về các thể loại Action RPG và Souls-like.","followers":1250,"reviewsCount":89},
+      {"id":"user2","username":"RPG Fan","avatar":"https://i.pravatar.cc/150?u=user2","bio":"Yêu thích thể loại RPG và fantasy. Đặc biệt quan tâm đến cốt truyện và phát triển nhân vật.","followers":890,"reviewsCount":67},
+      {"id":"user3","username":"Indie Explorer","avatar":"https://i.pravatar.cc/150?u=user3","bio":"Khám phá các tựa indie hay và độc đáo. Thích những game có cơ chế sáng tạo.","followers":450,"reviewsCount":34},
+      {"id":"user4","username":"Horror Master","avatar":"https://i.pravatar.cc/150?u=user4","bio":"Chuyên gia về thể loại kinh dị và thriller. Đánh giá các game horror từ indie đến AAA.","followers":680,"reviewsCount":45},
+      {"id":"user5","username":"Strategy Pro","avatar":"https://i.pravatar.cc/150?u=user5","bio":"Chuyên về các game chiến thuật và quản lý. Phân tích gameplay và balance.","followers":920,"reviewsCount":78},
+      {"id":"user6","username":"Mobile Gamer","avatar":"https://i.pravatar.cc/150?u=user6","bio":"Đánh giá game mobile và casual. Tập trung vào trải nghiệm người dùng và monetization.","followers":1100,"reviewsCount":92},
+      {"id":"user7","username":"Retro Collector","avatar":"https://i.pravatar.cc/150?u=user7","bio":"Sưu tập và đánh giá game retro. Chuyên về lịch sử game và những tựa game kinh điển.","followers":750,"reviewsCount":156},
+      {"id":"user8","username":"VR Enthusiast","avatar":"https://i.pravatar.cc/150?u=user8","bio":"Đam mê công nghệ VR/AR. Đánh giá các trải nghiệm thực tế ảo và mixed reality.","followers":540,"reviewsCount":28}
+    ]
+  },
+  "homepage": [
+    {"_id":"1","title":"Elden Ring Review","description":"An evolution of the Souls formula, creating one of the best open-world games ever.","gameImage":"https://i.imgur.com/L13a3n5.jpeg","author":{"name":"IGN Staff"},"genres":["Action","RPG"],"score":10,"likes":{"length":2500},"timestamp":"1m ago"},
+    {"_id":"2","title":"Stray Review","description":"A charming, beautiful, and thoughtful cat-based adventure.","gameImage":"https://i.imgur.com/5lGZ8gB.jpeg","author":{"name":"JANE DOE"},"genres":["Adventure","Indie"],"score":9,"likes":{"length":1200},"timestamp":"1w ago"},
+    {"_id":"3","title":"Cyberpunk 2077: Phantom Liberty","description":"A thrilling spy story and a rebuilt game make this a must-play.","gameImage":"https://i.imgur.com/kS5A5oE.jpeg","author":{"name":"TRAVIS NORTHUP"},"genres":["Action","RPG"],"score":9,"likes":{"length":880},"timestamp":"3m ago"},
+    {"_id":"4","title":"Hades II Early Access","description":"A masterful roguelike that builds upon its predecessor in every way.","gameImage":"https://i.imgur.com/yU4a3OA.jpeg","author":{"name":"MARK KNAPP"},"genres":["Action","Indie"],"score":9,"likes":{"length":950},"timestamp":"2w ago"}
+  ],
+  "auth": {
+    "loginUser": {
+      "id": "user123",
+      "username": "Test User",
+      "name": "Test User",
+      "bio": "Game thủ yêu thích các tựa game RPG và khám phá thế giới mở.",
+      "followers": 1250,
+      "following": ["user1", "user2", "user3"],
+      "followingCount": 180,
+      "joinedDate": "July 2023",
+      "savedPosts": []
+    },
+    "registerUser": {
+      "followers": 0,
+      "following": [],
+      "followingCount": 0,
+      "savedPosts": []
+    }
+  }
+}
+
+
