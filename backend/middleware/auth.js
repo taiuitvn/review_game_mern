@@ -8,9 +8,9 @@ export const auth = (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, "SECRET"); // Giống key bạn dùng trong jwt.sign()
+    const decoded = jwt.verify(token, "SECRET");
 
-    req.user = decoded; // Bây giờ req.user.id = user._id
+    req.user = decoded; // req.user.id = user._id
     next();
   } catch (err) {
     return res.status(401).json({ error: "Invalid token" });

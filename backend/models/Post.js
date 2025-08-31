@@ -1,19 +1,5 @@
 import mongoose from "mongoose";
 
-const ratingSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
-  value: {
-    type: Number,
-    min: 1,
-    max: 5,
-    required: true,
-  },
-});
-
 
 const postSchema = new mongoose.Schema(
   {
@@ -21,7 +7,6 @@ const postSchema = new mongoose.Schema(
     content: { type: String, required: true },
     coverImageUrl: { type: String },
     tags: [{ type: String }],
-    ratings: [ratingSchema],
     views: { type: Number, default: 0 },
     authorId: {
       type: mongoose.Schema.Types.ObjectId,

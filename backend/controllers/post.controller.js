@@ -132,16 +132,10 @@ export const savePost = async (req, res) => {
   res.json(user.savedPosts);
 };
 
-export const ratePost = async (req, res) => {
-  const post = await Post.findById(req.params.id);
-  const user = await User.findById(req.user.id);
-};
-
 export const getPostByTitle = async (req, res) => {
   try {
     const { title } = req.params;
 
-    // Tìm chính xác title
     // const post = await Post.findOne({ title });
 
     const post = await Post.findOne({
@@ -155,5 +149,56 @@ export const getPostByTitle = async (req, res) => {
     res.json(post);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Lấy danh sách bài viết trending
+export const getTrendingPosts = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+
+    const posts = await Post.find().populate("authorId", "username").lean();
+
+    const postsWithScore = await Promise.all(
+      posts.map(async (post) => {
+        // Lấy rating trung bình
+        const ratings = await Rating.find({ postId: post._id });
+        const avgRating =
+          ratings.length > 0
+            ? ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
+            : 0;
+
+        // Công thức tính điểm trending theo gpt
+        const score =
+          post.views * 0.4 + (post.likes?.length || 0) * 0.3 + avgRating * 2;
+
+        return {
+          ...post,
+          avgRating,
+          score,
+        };
+      })
+    );
+
+    // Sắp xếp score giảm dần
+    postsWithScore.sort((a, b) => b.score - a.score);
+
+    res.json(postsWithScore.slice(0, limit));
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server", error: err.message });
+  }
+};
+
+export const getSavedPosts = async (req, res) => {
+  try {
+    const userId = req.userId; // đã gắn sẵn từ middleware auth
+
+    const posts = await Post.find({ savedBy: userId })
+      .populate("authorId", "username email avatarUrl")
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server", error: err.message });
   }
 };

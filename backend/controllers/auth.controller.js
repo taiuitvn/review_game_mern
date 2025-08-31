@@ -57,3 +57,70 @@ export const getAllUsers = async (req, res) => {
 
   res.json(users);
 };
+
+export const updateUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { username, email, bio, avatarUrl, password } = req.body;
+
+    // Tạo object chứa các field sẽ update
+    const updates = {};
+    if (username) updates.username = username;
+    if (email) updates.email = email;
+    if (bio) updates.bio = bio;
+    if (avatarUrl) updates.avatarUrl = avatarUrl;
+    if (password) {
+      const hashed = await bcrypt.hash(password, 10);
+      updates.passwordHash = hashed;
+    }
+    updates.updatedAt = Date.now();
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-passwordHash");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User không tồn tại" });
+    }
+
+    res.json({
+      message: "Cập nhật thông tin thành công",
+      user: updatedUser,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server", error: err.message });
+  }
+};
+
+export const getPostsByUserId = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const posts = await Post.find({ author: userId })
+      .populate("author", "username email avatarUrl") // lấy thông tin cơ bản của user
+      .sort({ createdAt: -1 }); // sắp xếp mới nhất trước
+
+    if (!posts.length) {
+      return res.status(404).json({ message: "User này chưa có bài viết nào" });
+    }
+
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server", error: err.message });
+  }
+};
+
+
+export const getMyPosts = async (req, res) => {
+  try {
+    const posts = await Post.find({ author: req.userId })
+      .populate("author", "username email avatarUrl")
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server", error: err.message });
+  }
+};
