@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks';
 import { FaGamepad, FaEye, FaEyeSlash, FaSpinner, FaCheckCircle } from 'react-icons/fa';
 
 const LoginPage = () => {
@@ -29,19 +29,14 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // Giả lập API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Kiểm tra thông tin đăng nhập cơ bản
-      if (formData.email && formData.password) {
-        login(formData);
-        // Navigate manually to ensure redirect works
-        setTimeout(() => navigate('/'), 100);
+      const result = await login(formData);
+      if (result?.success) {
+        navigate('/');
       } else {
-        throw new Error('Vui lòng điền đầy đủ thông tin');
+        setError(result?.error || 'Đăng nhập thất bại. Vui lòng thử lại.');
       }
     } catch (err) {
-      setError(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+      setError(err?.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }

@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchReviews } from '../../api/reviews';
 import AnimatedCard from '../../components/common/AnimatedCard';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton';
+import Pagination from '../../components/common/Pagination';
 import { FaGamepad, FaFilter, FaSortAmountDown, FaSearch, FaFire } from 'react-icons/fa';
 
 const GenrePage = () => {
@@ -11,18 +12,42 @@ const GenrePage = () => {
   const [loading, setLoading] = React.useState(true);
   const [sortBy, setSortBy] = useState('newest');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   React.useEffect(() => {
     setLoading(true);
-    fetchReviews().then(({ data }) => {
-      setItems(data);
-      setLoading(false);
-    });
+    console.log('Fetching reviews for genre:', slug);
+    fetchReviews()
+      .then((resp) => {
+        console.log('Genre page response:', resp);
+        
+        // Handle different response formats
+        let data = [];
+        if (Array.isArray(resp)) {
+          data = resp;
+        } else if (Array.isArray(resp?.data)) {
+          data = resp.data;
+        } else if (resp?.data?.posts && Array.isArray(resp.data.posts)) {
+          data = resp.data.posts;
+        } else if (resp?.posts && Array.isArray(resp.posts)) {
+          data = resp.posts;
+        }
+        
+        console.log('Processed genre data:', data);
+        setItems(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        console.error('Error fetching reviews for genre:', error);
+        setItems([]);
+      })
+      .finally(() => setLoading(false));
   }, [slug]);
 
   const normalized = slug?.toLowerCase();
   const filtered = useMemo(() => {
-    let result = items.filter(r => (r.genres || []).some(g => g.toLowerCase() === normalized));
+    const safeItems = Array.isArray(items) ? items : [];
+    let result = safeItems.filter(r => (r.genres || r.tags || []).map((g) => String(g).toLowerCase()).some(g => g === normalized));
     
     // Apply search filter
     if (searchTerm.trim()) {
@@ -55,6 +80,19 @@ const GenrePage = () => {
     
     return result;
   }, [items, normalized, searchTerm, sortBy]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedReviews = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return filtered.slice(startIndex, endIndex);
+  }, [filtered, currentPage]);
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortBy, slug]);
 
   if (loading) {
     return (
@@ -181,10 +219,12 @@ const GenrePage = () => {
           </div>
         ) : (
           <>
+          {/* Results Content */}
+          <div className="space-y-8">
             {/* Results Count */}
             <div className="mb-6">
               <p className="text-gray-600 dark:text-gray-300">
-                Hiển thị <span className="font-semibold text-indigo-600 dark:text-indigo-400">{filtered.length}</span> kết quả
+                Hiển thị <span className="font-semibold text-indigo-600 dark:text-indigo-400">{paginatedReviews.length}</span> trong tổng số <span className="font-semibold">{filtered.length}</span> kết quả
                 {searchTerm && (
                   <span> cho "<span className="font-medium">{searchTerm}</span>"
                     <button
@@ -200,7 +240,7 @@ const GenrePage = () => {
             
             {/* Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filtered.map(review => (
+              {paginatedReviews.map(review => (
                 <AnimatedCard 
                   key={review._id} 
                   review={review}
@@ -208,6 +248,17 @@ const GenrePage = () => {
                 />
               ))}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                className="pt-8"
+              />
+            )}
+          </div>
           </>
         )}
       </div>

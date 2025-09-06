@@ -1,10 +1,8 @@
 import axios from "axios";
 
-// Ưu tiên VITE_API_BASE_URL, mặc định http://localhost:5000/api
+// Ưu tiên VITE_API_BASE_URL, mặc định http://localhost:8000
 const API = axios.create({
-  baseURL:
-    // import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/posts/list",
-    "http://localhost:8000/posts/list",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000",
 });
 
 API.interceptors.request.use((req) => {

@@ -25,13 +25,13 @@ const ReviewCard = ({ review }) => {
         </h3>
         {review.author && (
           <p className="text-sm text-gray-500 mt-1">
-            by {review.author.name || 'Unknown Author'}
+            by {review.author.name || review.author.username || 'Unknown Author'}
           </p>
         )}
         <div className="flex items-center justify-between text-sm text-gray-500 mt-4">
-          <span>❤️ {review.likes?.length || 0}</span>
-          <span>💬 {review.comments?.length || 0}</span>
-          <span>👁️ {review.views || 0}</span>
+          <span>❤️ {Array.isArray(review.likes) ? review.likes.length : (review.likes || 0)}</span>
+          <span>💬 {Array.isArray(review.comments) ? review.comments.length : (review.comments || 0)}</span>
+          <span>👁️ {typeof review.views === 'number' ? review.views : (review.views?.count || 0)}</span>
         </div>
       </div>
     </Link>

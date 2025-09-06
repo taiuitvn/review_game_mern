@@ -6,6 +6,7 @@ export { useComments } from './useComments';
 export { useNotifications } from './useNotifications';
 export { useRatings } from './useRatings';
 export { useFollows } from './useFollows';
+export { useTrending } from './useTrending';
 
 // Re-export types
 export * from '../types';

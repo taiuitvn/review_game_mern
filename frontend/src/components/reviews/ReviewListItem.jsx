@@ -1,86 +1,95 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks';
 import { FaBookmark, FaRegBookmark, FaHeart, FaComment, FaEye } from 'react-icons/fa';
 
 const ReviewListItem = ({ review }) => {
-  const { user, saveReview, unsaveReview, isReviewSaved } = useAuth();
+  // Debug logging to check review data
+  console.log('ReviewListItem received review:', {
+    id: review?._id,
+    title: review?.title,
+    fullReview: review
+  });
 
-  const handleSaveToggle = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  if (!review) {
+    return (
+      <div className="p-4 bg-gray-100 rounded-lg">
+        <p className="text-gray-500">Review not found</p>
+      </div>
+    );
+  }
 
-    if (!user) {
-      // Có thể chuyển hướng đến login hoặc hiển thị modal
-      return;
-    }
-
-    if (isReviewSaved(review._id)) {
-      unsaveReview(review._id);
-    } else {
-      saveReview(review._id);
-    }
-  };
-
-  const handleLikeToggle = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Logic like/unlike sẽ được implement sau
-    console.log('Toggle like for review:', review._id);
-  };
+  if (!review._id) {
+    console.error('Review missing _id:', review);
+    return (
+      <div className="p-4 bg-red-100 rounded-lg">
+        <p className="text-red-500">Review missing ID - cannot navigate</p>
+        <p className="text-xs text-gray-600">Title: {review.title}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex items-start gap-4 p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300">
-      <Link to={`/review/${review._id}`} className="flex items-start gap-4 flex-grow">
-        <div className="relative flex-shrink-0">
-          <img src={review.gameImage} alt={review.title} className="w-32 h-20 object-cover rounded-md" />
-          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 border-white">
-            {review.score}
+    <Link 
+      to={`/review/${review._id}`}
+      className="block bg-white rounded-lg shadow-md p-6 mb-4 hover:shadow-lg transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+      onClick={(e) => {
+        if (!review._id) {
+          e.preventDefault();
+          console.error('Cannot navigate - review missing _id:', review);
+          alert('Lỗi: Không thể mở bài review này. ID bị thiếu.');
+          return false;
+        }
+        console.log('Navigating to review:', review._id);
+      }}
+    >
+      <div className="flex items-start space-x-4">
+        {review.coverImageUrl && (
+          <img 
+            src={review.coverImageUrl} 
+            alt={review.title}
+            className="w-20 h-20 object-cover rounded-lg"
+          />
+        )}
+        <div className="flex-1">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2 hover:text-indigo-600 transition-colors">
+            {review.title}
+          </h3>
+          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+            {review.content}
+          </p>
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <div className="flex items-center space-x-4">
+              <span className="flex items-center gap-1">
+                <FaEye className="text-xs" />
+                {review.views || 0} lượt xem
+              </span>
+              <span className="flex items-center gap-1">
+                <FaHeart className="text-xs" />
+                {review.likes?.length || 0} thích
+              </span>
+              <span className="flex items-center gap-1">
+                <FaComment className="text-xs" />
+                {review.comments?.length || 0} bình luận
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              {review.tags?.slice(0, 3).map((tag, index) => (
+                <span 
+                  key={index}
+                  className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs"
+                >
+                  #{tag}
+                </span>
+              ))}
+              {review.tags?.length > 3 && (
+                <span className="text-xs text-gray-400">+{review.tags.length - 3}</span>
+              )}
+            </div>
           </div>
-        </div>
-
-        <div className="flex-grow">
-          <h3 className="text-lg font-bold text-gray-900 hover:text-indigo-600">{review.title}</h3>
-          <p className="text-sm text-gray-600 mt-1 overflow-hidden text-ellipsis whitespace-nowrap">{review.description}</p>
-          <div className="flex items-center gap-4 mt-2 text-xs font-semibold text-gray-500">
-            <span>{review.genres?.join(', ')}</span>
-            <span>by {review.author?.name}</span>
-            <span className="flex items-center gap-1">
-              <FaEye className="text-gray-400" />
-              {review.likes?.length || 0}
-            </span>
-          </div>
-        </div>
-      </Link>
-
-      {/* Action Buttons */}
-      <div className="flex flex-col gap-2 flex-shrink-0">
-        <button
-          onClick={handleSaveToggle}
-          className={`p-2 rounded-full transition-colors ${
-            user && isReviewSaved(review._id)
-              ? 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
-              : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-100'
-          }`}
-          title={user && isReviewSaved(review._id) ? 'Bỏ lưu' : 'Lưu bài viết'}
-        >
-          {user && isReviewSaved(review._id) ? <FaBookmark /> : <FaRegBookmark />}
-        </button>
-
-        <button
-          onClick={handleLikeToggle}
-          className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-          title="Thích bài viết"
-        >
-          <FaHeart />
-        </button>
-
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <FaComment className="text-gray-400" />
-          <span>{review.comments?.length || 0}</span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 

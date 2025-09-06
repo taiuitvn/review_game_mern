@@ -1,53 +1,26 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 
-const LoginPromptModal = ({ isOpen, onClose, title, message }) => {
-  if (!isOpen) return null;
+const LoginPromptModal = ({ show, onClose, title, message }) => {
+  if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
-
-      {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6">
-        <div className="text-center">
-          {/* Icon */}
-          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🔐</span>
-          </div>
-
-          {/* Title */}
-          <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-
-          {/* Message */}
-          <p className="text-gray-600 mb-6">{message}</p>
-
-          {/* Actions */}
-          <div className="flex gap-3 justify-center">
-            <Link
-              to="/login"
-              onClick={onClose}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-105"
-            >
-              Đăng nhập
-            </Link>
-            <Link
-              to="/register"
-              onClick={onClose}
-              className="border-2 border-indigo-200 text-indigo-600 font-semibold py-2 px-6 rounded-lg hover:bg-indigo-50 transition-colors duration-200"
-            >
-              Đăng ký
-            </Link>
-          </div>
-
-          {/* Close button */}
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4 break-words leading-relaxed">{title}</h2>
+        <p className="text-gray-600 mb-6 break-words leading-relaxed">{message}</p>
+        <div className="flex flex-col sm:flex-row justify-end gap-3">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap"
           >
-            <span className="text-xl">×</span>
+            Đóng
           </button>
+          <a
+            href="/login"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center whitespace-nowrap"
+          >
+            Đăng nhập
+          </a>
         </div>
       </div>
     </div>

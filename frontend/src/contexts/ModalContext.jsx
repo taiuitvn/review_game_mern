@@ -1,37 +1,43 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
-const ModalContext = createContext(null);
+const ModalContext = createContext();
+
+export const useModal = () => {
+  const context = useContext(ModalContext);
+  if (!context) {
+    throw new Error('useModal must be used within a ModalProvider');
+  }
+  return context;
+};
 
 export const ModalProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [modalContent, setModalContent] = useState(null);
+  const [modalProps, setModalProps] = useState({});
 
-  const openModal = (content) => {
+  const openModal = (content, props = {}) => {
     setModalContent(content);
+    setModalProps(props);
     setIsOpen(true);
   };
 
   const closeModal = () => {
     setIsOpen(false);
     setModalContent(null);
+    setModalProps({});
+  };
+
+  const value = {
+    isOpen,
+    modalContent,
+    modalProps,
+    openModal,
+    closeModal,
   };
 
   return (
-    <ModalContext.Provider value={{ openModal, closeModal }}>
+    <ModalContext.Provider value={value}>
       {children}
-      {isOpen && (
-        <div className="fixed inset-0 bg-grey bg-opacity-50 backdrop-blur-sm z-40" onClick={closeModal}></div>
-      )}
-      {isOpen && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl z-50 p-8 max-w-md w-full">
-          <button onClick={closeModal} className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
-          {modalContent}
-        </div>
-      )}
     </ModalContext.Provider>
   );
-};
-
-export const useModal = () => {
-  return useContext(ModalContext);
 };

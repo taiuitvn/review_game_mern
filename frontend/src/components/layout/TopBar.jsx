@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks';
 import LoginPromptModal from '../common/LoginPromptModal';
 
 import {
@@ -181,17 +181,17 @@ const Header = () => {
                   {/* User Menu */}
                   <div className="relative group">
                     <Link
-                      to={`/profile/${user.id}`}
+                      to={`/profile/${user._id || user.id}`}
                       className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                     >
-                      <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
-                      <span className="hidden md:inline font-medium text-gray-700">{user.name}</span>
+                      <img src={user.avatar || user.avatarUrl} alt={user.name || user.username} className="w-8 h-8 rounded-full object-cover" />
+                      <span className="hidden md:inline font-medium text-gray-700">{user.name || user.username}</span>
                     </Link>
                     
                     {/* User Dropdown */}
                     <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                       <Link 
-                        to={`/profile/${user.id}`}
+                        to={`/profile/${user._id || user.id}`}
                         className="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                       >
                         <FaUserCircle className="w-4 h-4" />

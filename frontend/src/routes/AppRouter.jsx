@@ -1,8 +1,9 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks';
 import HomePage from '../pages/HomePage';
 import CreateReviewPage from '../pages/CreateReviewPage';
+import EditReviewPage from '../pages/EditReviewPage';
 import ReviewDetailPage from '../pages/ReviewDetailPage';
 import ProfilePage from '../pages/ProfilePage';
 import LoginPage from '../pages/LoginPage';
@@ -60,6 +61,12 @@ const AppRouter = () => {
           <Route path="/create-review" element={
             <ProtectedRoute>
               <CreateReviewPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/edit-review/:id" element={
+            <ProtectedRoute>
+              <EditReviewPage />
             </ProtectedRoute>
           } />
                       <Route path="/profile/:userId" element={<ProfilePage />} />

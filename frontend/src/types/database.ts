@@ -14,26 +14,33 @@ export interface User {
   id?: string;
 }
 
+export interface MinimalUser {
+  _id: string;
+  username: string;
+  email?: string;
+  avatarUrl?: string;
+}
+
 export interface Post {
   _id: string;
-  authorId: string;
+  authorId: string | MinimalUser; // Backend có thể populate
   title: string;
   content: string;
-  coverImageUrl: string;
+  coverImageUrl?: string;
   tags: string[];
-  rating: number;
   views: number;
-  likes: string[];
-  savedBy: string[];
+  likes: string[]; // danh sách userId đã like
+  savedBy: string[]; // danh sách userId đã lưu
   createdAt: string;
   updatedAt: string;
-  // Populated fields
-  author: {
+  // Populated/legacy fields (tùy trang FE)
+  author?: {
     id: string;
     name: string;
     avatar: string;
     bio: string;
   };
+  rating?: number; // không bắt buộc trong backend
 }
 
 export interface Comment {

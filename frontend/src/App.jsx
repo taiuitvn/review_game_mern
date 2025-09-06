@@ -1,6 +1,6 @@
 import React from 'react';
 import AppRouter from './routes/AppRouter';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './hooks';
 import { ModalProvider } from './contexts/ModalContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 

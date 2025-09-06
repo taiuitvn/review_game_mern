@@ -5,15 +5,17 @@ import {
   createComment,
   editCommentById,
   likeComment,
+  dislikeComment,
 } from "../controllers/comment.controller.js";
 import { auth } from "../middleware/auth.js";
 const comments_router = express.Router();
 
 comments_router.get("/post/:id", getCommentByPostId);
 comments_router.post("/like/:id", auth, likeComment);
-comments_router.delete("/remove/:id", removeCommentById);
-comments_router.put("/edit/:id", editCommentById);
-comments_router.post("/", createComment);
+comments_router.post("/dislike/:id", auth, dislikeComment);
+comments_router.delete("/remove/:id", auth, removeCommentById);
+comments_router.put("/edit/:id", auth, editCommentById);
+comments_router.post("/", auth, createComment);
 
 export default comments_router;
 

@@ -14,15 +14,19 @@ const PlatformPage = () => {
 
   React.useEffect(() => {
     setLoading(true);
-    fetchReviews().then(({ data }) => {
-      setItems(data);
-      setLoading(false);
-    });
+    fetchReviews()
+      .then((resp) => {
+        const data = Array.isArray(resp?.data) ? resp.data : (resp?.data?.posts || []);
+        setItems(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
   }, [slug]);
 
   const normalized = slug?.toLowerCase();
   const filtered = useMemo(() => {
-    let result = items.filter(r => (r.platforms || []).some(p => p.toLowerCase().replace(/\s+/g, '-') === normalized));
+    const safeItems = Array.isArray(items) ? items : [];
+    let result = safeItems.filter(r => (r.platforms || r.tags || []).map((p) => String(p).toLowerCase().replace(/\s+/g, '-')).some(p => p === normalized));
     
     // Apply search filter
     if (searchTerm) {
