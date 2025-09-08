@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import LazyImage from './LazyImage';
 import { FaStar, FaEye, FaHeart, FaBookmark } from 'react-icons/fa';
+import { truncateText } from '../../utils/textUtils';
 
 const AnimatedCard = ({ 
   review, 
@@ -47,10 +48,12 @@ const AnimatedCard = ({
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           
           {/* Rating Badge */}
-          {showRating && review.rating && (
+          {showRating && ((review.avgRating !== undefined && review.avgRating > 0) || review.rating) && (
             <div className="absolute top-3 right-3 bg-yellow-500 text-white px-2 py-1 rounded-full text-sm font-bold flex items-center gap-1 transform translate-x-full group-hover:translate-x-0 transition-transform duration-300">
               <FaStar className="w-3 h-3" />
-              {review.rating}
+              {review.avgRating !== undefined && review.avgRating > 0
+                  ? `${Math.round(review.avgRating)}`
+                  : `${review.rating}`}
             </div>
           )}
           
@@ -88,7 +91,7 @@ const AnimatedCard = ({
           </h3>
           
           <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-            {review.description || review.content?.substring(0, 100) + '...' || 'Không có mô tả'}
+            {truncateText(review.content, 100) || review.description || 'Không có mô tả'}
           </p>
           
           {/* Tags */}

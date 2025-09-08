@@ -21,6 +21,8 @@ const postSchema = new mongoose.Schema(
     gameName: { type: String }, // Game name
     gameImage: { type: String }, // Game cover image URL
     rating: { type: Number, min: 1, max: 5 }, // User rating (1-5 stars)
+    platforms: [{ type: String }], // Game platforms (PC, PlayStation, Xbox, etc.)
+    genres: [{ type: String }], // Game genres
   },
   { timestamps: true } // automatically creates createdAt & updatedAt
 );

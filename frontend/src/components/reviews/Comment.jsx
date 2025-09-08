@@ -187,13 +187,13 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
     <div className="border-l-2 border-gray-200 pl-4">
       <div className="flex gap-4">
         <img
-          src={comment.author?.avatar || 'https://via.placeholder.com/150?text=User'}
-          alt={comment.author?.name || 'User'}
+          src={comment.authorId?.avatarUrl || comment.author?.avatar || 'https://via.placeholder.com/150?text=User'}
+          alt={comment.authorId?.username || comment.author?.name || 'User'}
           className="w-10 h-10 rounded-full object-cover flex-shrink-0"
         />
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <span className="font-semibold text-gray-900">{comment.author?.name}</span>
+            <span className="font-semibold text-gray-900">{comment.authorId?.username || comment.author?.name}</span>
             <span className="text-sm text-gray-500">
               {new Date(comment.createdAt).toLocaleDateString('vi-VN')}
             </span>

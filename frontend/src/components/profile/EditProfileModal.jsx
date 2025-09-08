@@ -1,27 +1,72 @@
 import React, { useState } from 'react';
-import { FaTimes, FaSave } from 'react-icons/fa';
+import { useAuth } from '../../hooks'; // Import useAuth to update user context
+import { FaTimes, FaSave, FaUpload } from 'react-icons/fa';
 
 const EditProfileModal = ({ open, onClose, initial, onSave }) => {
+  const { updateProfile } = useAuth(); // Get updateProfile function from context
   const [formData, setFormData] = useState({
     username: initial?.username || '',
     bio: initial?.bio || '',
     avatarUrl: initial?.avatarUrl || ''
   });
   const [loading, setLoading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(initial?.avatarUrl || '');
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value
     });
+    
+    // Update preview when URL changes
+    if (name === 'avatarUrl') {
+      setAvatarPreview(value);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setFormData({
+        ...formData,
+        avatarUrl: '' // Clear URL when file is selected
+      });
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarPreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await onSave(formData);
-      onClose();
+      // If file is selected, upload it first
+      let avatarUrl = formData.avatarUrl;
+      if (selectedFile) {
+        // Import the upload function
+        const { uploadImage } = await import('../../api/users');
+        const uploadResult = await uploadImage(selectedFile);
+        avatarUrl = uploadResult.url;
+      }
+      
+      // Save profile with the avatar URL (either from file upload or direct input)
+      const updatedData = { ...formData, avatarUrl };
+      const result = await updateProfile(updatedData); // Use updateProfile from context to update user data
+      
+      if (result.success) {
+        await onSave(updatedData); // Also call the onSave prop if needed
+        onClose();
+      } else {
+        console.error('Error updating profile:', result.error);
+      }
     } catch (error) {
       console.error('Error saving profile:', error);
     } finally {
@@ -73,18 +118,71 @@ const EditProfileModal = ({ open, onClose, initial, onSave }) => {
             />
           </div>
 
+          {/* Avatar Preview and Upload */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Ảnh đại diện (URL)
+              Ảnh đại diện
             </label>
+            
+            {/* Avatar Preview */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="relative">
+                {avatarPreview ? (
+                  <img 
+                    src={avatarPreview} 
+                    alt="Preview" 
+                    className="w-16 h-16 rounded-full object-cover border-2 border-gray-300"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-300">
+                    <span className="text-gray-500 text-xs">No image</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex-1">
+                <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors">
+                  <FaUpload />
+                  <span className="text-sm font-medium">Chọn ảnh</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-xs text-gray-500 mt-1">JPG, PNG hoặc GIF (tối đa 5MB)</p>
+              </div>
+            </div>
+            
+            {/* URL Input */}
             <input
               type="url"
               name="avatarUrl"
               value={formData.avatarUrl}
               onChange={handleChange}
+              placeholder="Hoặc nhập URL ảnh trực tiếp"
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-              placeholder="https://example.com/avatar.jpg"
+              disabled={!!selectedFile}
             />
+            
+            {/* Clear file button */}
+            {selectedFile && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFile(null);
+                  setAvatarPreview(initial?.avatarUrl || '');
+                  setFormData({
+                    ...formData,
+                    avatarUrl: initial?.avatarUrl || ''
+                  });
+                }}
+                className="mt-2 text-sm text-red-500 hover:text-red-700"
+              >
+                Xóa ảnh đã chọn
+              </button>
+            )}
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

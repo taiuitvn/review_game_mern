@@ -7,10 +7,10 @@ import LoginPromptModal from '../components/common/LoginPromptModal';
 import ReviewListItem from '../components/reviews/ReviewListItem';
 import StatsCard from '../components/common/StatsCard';
 import Pagination from '../components/common/Pagination';
-import { FaArrowRight, FaGamepad } from 'react-icons/fa';
+import { FaArrowRight, FaGamepad, FaStar, FaClipboardList } from 'react-icons/fa';
+import { getReadingTime, truncateText } from '../utils/textUtils';
 
-
-const genreList = ['All', 'Action', 'RPG', 'Adventure', 'Indie'];
+const genreList = ['All', 'Action', 'RPG', 'Adventure', 'Indie', 'Strategy', 'Simulation', 'Sports', 'Racing', 'Puzzle', 'Platformer', 'Shooter', 'Horror', 'Fighting', 'MMORPG', 'MOBA'];
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -39,6 +39,13 @@ const HomePage = () => {
     return reviews.filter(review => review.tags?.includes(activeGenre));
   }, [reviews, activeGenre]);
 
+  // For filtered reviews, we need to handle pagination differently
+  // If filtering by genre (not 'All'), we show all filtered results without backend pagination
+  // If showing 'All', we use backend pagination
+  const shouldUseBackendPagination = activeGenre === 'All';
+  const displayedReviews = shouldUseBackendPagination ? reviews : filteredReviews;
+  const displayTotalPages = shouldUseBackendPagination ? totalPages : 1; // Show all filtered results on one page
+
   const featuredReview = reviews && reviews.length > 0 ? reviews[0] : null;
   const popularReviews = useMemo(() => {
     if (!reviews || reviews.length === 0) return [];
@@ -56,6 +63,24 @@ const HomePage = () => {
     setShowLoginModal(true);
   };
 
+  // Reset currentPage when activeGenre changes
+  const prevActiveGenreRef = React.useRef(activeGenre);
+  React.useEffect(() => {
+    if (prevActiveGenreRef.current !== activeGenre && currentPage > 1) {
+      console.log(`Resetting currentPage from ${currentPage} to 1 because activeGenre changed from ${prevActiveGenreRef.current} to ${activeGenre}`);
+      setPage(1);
+    }
+    prevActiveGenreRef.current = activeGenre;
+  }, [activeGenre, currentPage, setPage]);
+
+  // Reset currentPage if it exceeds displayTotalPages
+  React.useEffect(() => {
+    if (displayTotalPages > 0 && currentPage > displayTotalPages) {
+      console.log(`Resetting currentPage from ${currentPage} to 1 because displayTotalPages is ${displayTotalPages}`);
+      setPage(1);
+    }
+  }, [displayTotalPages, currentPage, setPage]);
+
   // Compute community stats from API data
   React.useEffect(() => {
     let canceled = false;
@@ -72,8 +97,12 @@ const HomePage = () => {
         const totalGames = Array.from(uniqueTitles).filter(Boolean).length;
 
         // Average rating if present
-        const ratings = (reviews || []).map(r => typeof r.rating === 'number' ? r.rating : null).filter(v => v !== null);
-        const avgRating = ratings.length ? (ratings.reduce((a, b) => a + (b || 0), 0) / ratings.length).toFixed(1) : '0.0';
+        const ratings = (reviews || []).map(r => {
+          if (r.avgRating !== undefined && r.avgRating > 0) return r.avgRating;
+          if (typeof r.rating === 'number') return r.rating;
+          return null;
+        }).filter(v => v !== null);
+        const avgRating = ratings.length ? Math.round(ratings.reduce((a, b) => a + (b || 0), 0) / ratings.length).toString() : '0';
 
         // Top games by likes (use titles)
         const topGames = [...(reviews || [])]
@@ -194,7 +223,7 @@ const HomePage = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
                   <div className="absolute bottom-0 left-0 p-8">
                     <div className="absolute top-6 left-6 w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex flex-col items-center justify-center text-white font-bold border-4 border-white shadow-lg transform group-hover:scale-110 transition-transform">
-                      <span className="text-2xl">{typeof featuredReview.rating === 'number' ? featuredReview.rating : (Array.isArray(featuredReview.likes) ? featuredReview.likes.length : (featuredReview.likes || 0))}</span>
+                      <span className="text-2xl">{featuredReview.avgRating !== undefined && featuredReview.avgRating > 0 ? `${Math.round(featuredReview.avgRating)}` : (typeof featuredReview.rating === 'number' ? `${Math.round(featuredReview.rating)}` : (Array.isArray(featuredReview.likes) ? featuredReview.likes.length : (featuredReview.likes || 0)))}</span>
                       <span className="text-xs tracking-wider">SCORE</span>
                     </div>
                     <div className="mt-16">
@@ -211,7 +240,7 @@ const HomePage = () => {
                         </Link>
                       </h2>
                       <p className="text-gray-200 text-lg leading-relaxed max-w-2xl">
-                        {featuredReview.description || (featuredReview.content ? String(featuredReview.content).slice(0, 140) + '…' : '')}
+                        {featuredReview.description || truncateText(featuredReview.content, 140)}
                       </p>
                     </div>
                   </div>
@@ -254,37 +283,41 @@ const HomePage = () => {
                   <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
                   <h2 className="text-2xl font-bold text-gray-900">Bài viết mới nhất</h2>
                 </div>
-                <div className="flex items-center bg-white border border-gray-200 rounded-full p-1 shadow-sm">
-                  {genreList.map(genre => (
-                    <button
-                      key={genre}
-                      onClick={() => setActiveGenre(genre)}
-                      className={`py-2 px-6 text-sm font-semibold transition-all duration-300 rounded-full ${
-                        activeGenre === genre
-                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg transform scale-105'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-indigo-600'
-                      }`}
+                <div className="flex items-center">
+                  <div className="space-y-1 w-64">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <FaGamepad className="text-indigo-500" />
+                      Thể loại
+                    </label>
+                    <select
+                      value={activeGenre}
+                      onChange={(e) => setActiveGenre(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 hover:bg-white transition-all duration-300 text-gray-900 font-medium"
                     >
-                      {genre}
-                    </button>
-                  ))}
+                      {genreList.map(genre => (
+                        <option key={genre} value={genre}>{genre}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-6">
                 {filteredReviews.length > 0 ? (
                   <>
-                    {filteredReviews.map((review) => (
+                    {displayedReviews.map((review) => (
                       <ReviewListItem key={review._id} review={review} />
                     ))}
                     
                     {/* Pagination */}
-                    <Pagination
-                      currentPage={currentPage}
-                      totalPages={totalPages}
-                      onPageChange={setPage}
-                      className="pt-8"
-                    />
+                    {displayTotalPages > 1 && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={displayTotalPages}
+                        onPageChange={setPage}
+                        className="pt-8"
+                      />
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
@@ -308,8 +341,25 @@ const HomePage = () => {
 
           {}
           <aside className="lg:col-span-1 space-y-8">
-            {}
-            <StatsCard stats={communityStats || undefined} />
+            {/* {communityStats && (
+              <div className="space-y-4">
+                <StatsCard 
+                  title="Điểm đánh giá trung bình" 
+                  value={`${communityStats.avgRating}`} 
+                  icon={<FaStar />} 
+                />
+                <StatsCard 
+                  title="Tổng số bài đánh giá" 
+                  value={communityStats.totalReviews} 
+                  icon={<FaClipboardList />} 
+                />
+                <StatsCard 
+                  title="Tổng số game" 
+                  value={communityStats.totalGames} 
+                  icon={<FaGamepad />} 
+                />
+              </div>
+            )} */}
 
             {}
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">

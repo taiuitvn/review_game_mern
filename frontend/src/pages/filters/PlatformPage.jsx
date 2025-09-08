@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchReviews } from '../../api/reviews';
+import { getAllPosts } from '../../api/reviews';
 import AnimatedCard from '../../components/common/AnimatedCard';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton';
 import { FaGamepad, FaSearch, FaSortAmountDown, FaFire } from 'react-icons/fa';
 
 const PlatformPage = () => {
-  const { slug } = useParams();
+  const { platform } = useParams();
   const [items, setItems] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [sortBy, setSortBy] = React.useState('newest');
@@ -14,19 +14,60 @@ const PlatformPage = () => {
 
   React.useEffect(() => {
     setLoading(true);
-    fetchReviews()
+    console.log('PlatformPage: Fetching all reviews for client-side filtering');
+    getAllPosts()
       .then((resp) => {
-        const data = Array.isArray(resp?.data) ? resp.data : (resp?.data?.posts || []);
+        console.log('PlatformPage: Raw API response:', resp);
+        
+        // Handle different response formats like GenrePage does
+        let data = [];
+        if (Array.isArray(resp)) {
+          data = resp;
+        } else if (Array.isArray(resp?.data)) {
+          data = resp.data;
+        } else if (resp?.data?.posts && Array.isArray(resp.data.posts)) {
+          data = resp.data.posts;
+        } else if (resp?.posts && Array.isArray(resp.posts)) {
+          data = resp.posts;
+        }
+        
+        console.log('PlatformPage: Processed data:', data);
+        
+        // Debug: Log platform data from first few reviews
+        if (data.length > 0) {
+          console.log('PlatformPage: Sample review platform data:', {
+            sampleReview: data[0],
+            platforms: data[0]?.platforms,
+            tags: data[0]?.tags,
+            gamePlatforms: data[0]?.gamePlatforms,
+            gameData: data[0]?.gameData
+          });
+        }
+        
         setItems(Array.isArray(data) ? data : []);
       })
-      .catch(() => setItems([]))
+      .catch((error) => {
+        console.error('PlatformPage: Error fetching reviews:', error);
+        setItems([]);
+      })
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, []);
 
-  const normalized = slug?.toLowerCase();
   const filtered = useMemo(() => {
     const safeItems = Array.isArray(items) ? items : [];
-    let result = safeItems.filter(r => (r.platforms || r.tags || []).map((p) => String(p).toLowerCase().replace(/\s+/g, '-')).some(p => p === normalized));
+    console.log('PlatformPage: useMemo filtering - items:', safeItems.length);
+    
+    // Filter by platform on frontend
+    const capitalizedPlatform = platform.charAt(0).toUpperCase() + platform.slice(1).toLowerCase();
+    let result = safeItems.filter(item => {
+      const platforms = item.platforms || [];
+      return platforms.some(p => p.toLowerCase() === platform.toLowerCase());
+    });
+    
+    console.log('PlatformPage: Frontend filtered results:', {
+       totalItems: result.length,
+       platform: platform
+     });
     
     // Apply search filter
     if (searchTerm) {
@@ -42,7 +83,7 @@ const PlatformPage = () => {
         case 'oldest':
           return new Date(a.createdAt) - new Date(b.createdAt);
         case 'rating':
-          return (b.rating || 0) - (a.rating || 0);
+          return (b.avgRating !== undefined ? b.avgRating : (b.rating || 0)) - (a.avgRating !== undefined ? a.avgRating : (a.rating || 0));
         case 'views':
           return (b.views || 0) - (a.views || 0);
         case 'likes':
@@ -54,7 +95,7 @@ const PlatformPage = () => {
     });
     
     return result;
-  }, [items, normalized, searchTerm, sortBy]);
+  }, [items, searchTerm, sortBy, platform]);
 
   if (loading) {
     return (
@@ -91,10 +132,10 @@ const PlatformPage = () => {
             </div>
             <div>
               <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">
-                Nền tảng: <span className="text-emerald-600 dark:text-emerald-400 uppercase">{slug}</span>
+                Nền tảng: <span className="text-emerald-600 dark:text-emerald-400 uppercase">{platform}</span>
               </h1>
               <p className="text-gray-600 dark:text-gray-300">
-                Hiển thị các bài review phát hành trên "{slug}" • {filtered.length} kết quả
+                Hiển thị các bài review phát hành trên "{platform}" • {filtered.length} kết quả
               </p>
             </div>
           </div>
@@ -105,7 +146,7 @@ const PlatformPage = () => {
           {/* Search Bar */}
           <div className="relative flex-1">
             <label htmlFor="platform-search-input" className="sr-only">
-              Tìm kiếm bài review trong nền tảng {slug}
+              Tìm kiếm bài review trong nền tảng {platform}
             </label>
             <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" aria-hidden="true" />
             <input
@@ -156,8 +197,8 @@ const PlatformPage = () => {
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
                 {searchTerm 
-                  ? `Không có bài review nào khớp với "${searchTerm}" trên nền tảng ${slug}`
-                  : `Chưa có review nào cho nền tảng "${slug}". Hãy quay lại sau hoặc khám phá các nền tảng khác.`
+                  ? `Không có bài review nào khớp với "${searchTerm}" trên nền tảng ${platform}`
+                  : `Chưa có review nào cho nền tảng "${platform}". Hãy quay lại sau hoặc khám phá các nền tảng khác.`
                 }
               </p>
             </div>

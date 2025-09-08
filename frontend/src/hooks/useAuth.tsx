@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User as DbUser, LoginCredentials, RegisterData, AuthResult } from '../types';
 import { login as apiLogin, register as apiRegister, updateUser } from '../api/auth';
-import { savePost as apiSavePost } from '../api/reviews';
+import { savePost as apiSavePost, likePost as apiLikePost } from '../api/reviews';
 import { followUser as apiFollowUser, unfollowUser as apiUnfollowUser } from '../api/users';
 
 interface AuthContextType {
@@ -13,15 +13,14 @@ interface AuthContextType {
   register: (userData: RegisterData) => Promise<AuthResult>;
   logout: () => void;
   updateProfile: (updateData: Partial<DbUser>) => Promise<AuthResult>;
-  followUser: (targetUserId: string) => void;
-  unfollowUser: (targetUserId: string) => void;
+  followUser: (targetUserId: string) => Promise<void>;
+  unfollowUser: (targetUserId: string) => Promise<void>;
   isFollowing: (targetUserId: string) => boolean;
   savePost: (postId: string) => Promise<void>;
   unsavePost: (postId: string) => Promise<void>;
   isPostSaved: (postId: string) => boolean;
-  saveReview: (reviewId: string) => Promise<void>;
-  unsaveReview: (reviewId: string) => Promise<void>;
-  isReviewSaved: (reviewId: string) => boolean;
+  likePost: (postId: string) => Promise<void>;
+  isPostLiked: (postId: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -62,10 +61,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Store token and user data
       localStorage.setItem('profile', JSON.stringify({ token, user }));
       setUser(user as DbUser);
-      navigate('/');
+      // Don't navigate here to avoid conflicts with form submission handling
       return { success: true, user: user as DbUser };
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+      // Provide user-friendly error messages
+      let errorMessage = 'Đăng nhập thất bại. Vui lòng thử lại.';
+      
+      if (error.response?.status === 401) {
+        // Handle specific 401 errors from backend
+        const backendMessage = error.response?.data?.msg || error.response?.data?.message;
+        if (backendMessage === "Invalid credentials" || backendMessage === "Wrong password") {
+          errorMessage = "Tài khoản hoặc mật khẩu không chính xác";
+        } else {
+          errorMessage = backendMessage || errorMessage;
+        }
+      } else if (error.response?.status === 400) {
+        // Handle 400 errors (missing email/password)
+        errorMessage = error.response?.data?.message || errorMessage;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
@@ -78,20 +94,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const response: any = await apiRegister(userData);
       let token: string | undefined;
       let user: DbUser | undefined;
+      
+      // Check if response contains token and user directly
       if (response?.data?.token && response?.data?.user) {
         token = response.data.token;
         user = response.data.user;
-      } else if (response?.data?._id || response?.data?.username) {
-        // Backend trả về user thuần sau khi đăng ký -> tự động đăng nhập
-        const loginResp: any = await apiLogin({ email: (userData as any).email, password: (userData as any).password });
-        token = loginResp?.data?.token;
-        user = loginResp?.data?.user;
+      }
+      // If not, try to login with the provided credentials
+      else {
+        try {
+          const loginResp: any = await apiLogin({ 
+            email: userData.email, 
+            password: userData.password 
+          });
+          token = loginResp?.data?.token;
+          user = loginResp?.data?.user;
+        } catch (loginError) {
+          console.error('Auto-login after registration failed:', loginError);
+          return { success: false, error: 'Registration succeeded but auto-login failed' };
+        }
       }
 
       if (token && user) {
         localStorage.setItem('profile', JSON.stringify({ token, user }));
         setUser(user as DbUser);
-        navigate('/');
         return { success: true, user } as AuthResult;
       }
       return { success: false, error: 'Registration succeeded but login failed' };
@@ -106,7 +132,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = (): void => {
     localStorage.removeItem('profile');
     setUser(null);
-    navigate('/');
+    if (window.location.pathname !== '/') {
+      navigate('/');
+    }
   };
 
   const updateProfile = async (updateData: Partial<DbUser>): Promise<AuthResult> => {
@@ -124,7 +152,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.setItem('profile', JSON.stringify(profile));
       }
       
-      setUser(updatedUser);
+      // Update user state
+      setUser(updatedUser as DbUser);
+      
       return { success: true, user: updatedUser };
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 'Update failed';
@@ -186,13 +216,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!user) return;
     
     try {
-      await apiSavePost(postId);
+      const response = await apiSavePost(postId);
       
-      // Check if the post is now saved or unsaved based on response or current state
-      const isCurrentlySaved = (user.savedPosts || []).includes(postId);
-      const updatedSavedPosts = isCurrentlySaved 
-        ? ((user as any).savedPosts || []).filter((id: string) => id !== postId)
-        : [...(((user as any).savedPosts || []) as string[]), postId];
+      // Use the updated savedPosts array from server response
+      const updatedSavedPosts = response.userSavedPosts || [];
       
       const updatedUser: DbUser = {
         ...user,
@@ -224,17 +251,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return (user.savedPosts || []).includes(postId);
   };
 
-  // Review functions (alias for post functions)
-  const saveReview = async (reviewId: string): Promise<void> => {
-    await savePost(reviewId);
+  // Like functionality
+  const likePost = async (postId: string): Promise<any> => {
+    if (!user) return;
+    
+    try {
+      const response = await apiLikePost(postId);
+      console.log('Like post response:', response);
+      
+      // The response contains the updated post data
+      // We could update local state here if needed, but for now we'll just rely on the UI state
+      return response;
+    } catch (error) {
+      console.error('Failed to like post:', error);
+      throw error;
+    }
   };
 
-  const unsaveReview = async (reviewId: string): Promise<void> => {
-    await unsavePost(reviewId);
-  };
-
-  const isReviewSaved = (reviewId: string): boolean => {
-    return isPostSaved(reviewId);
+  const isPostLiked = (postId: string): boolean => {
+    // This would require fetching the post data to check if it's liked
+    // For now, we'll rely on component-level state management
+    return false;
   };
 
   const value: AuthContextType = {
@@ -251,9 +288,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     savePost,
     unsavePost,
     isPostSaved,
-    saveReview,
-    unsaveReview,
-    isReviewSaved
+    likePost,
+    isPostLiked
   };
 
   return (

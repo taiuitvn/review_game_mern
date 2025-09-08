@@ -2,10 +2,19 @@ import Post from "../models/Post.js";
 import User from "../models/User.js";
 import Rating from "../models/Ratings.js";
 import { uploadImage } from "../services/uploadImage.js";
+import { createNotificationHelper } from "./notification.controller.js";
 
 export const createPost = async (req, res) => {
   try {
-    const { title, content, tags, authorId, imageHash, imageBase64, gameImage, gameName, gameId, rating } = req.body;
+    const { title, content, tags, authorId, imageHash, imageBase64, gameImage, gameName, gameId, rating, platforms, genres } = req.body;
+    
+    console.log('createPost: Received data:', {
+      title,
+      platforms: platforms,
+      genres: genres,
+      gameId,
+      gameName
+    });
     
     // Validate required fields
     if (!title || !content) {
@@ -49,7 +58,9 @@ export const createPost = async (req, res) => {
       // Store additional game-related metadata
       gameId,
       gameName,
-      rating
+      rating,
+      platforms: Array.isArray(platforms) ? platforms : [], // Add platform data
+      genres: Array.isArray(genres) ? genres : [], // Add genre data
     });
 
     // Populate author data before returning
@@ -152,22 +163,56 @@ export const getAllPosts = async (req, res) => {
       .limit(limit)
       .populate("authorId");
 
+    // Add average rating calculation and comment count for each post
+    const Comment = (await import('../models/Comment.js')).default;
+    const postsWithRatings = await Promise.all(
+      posts.map(async (post) => {
+        const ratings = await Rating.find({ postId: post._id });
+        
+        // Debug rating values
+        if (ratings.length > 0) {
+          console.log('Rating values for post', post._id, ':', ratings.map(r => r.value));
+          console.log('Full rating objects:', ratings.map(r => ({ id: r._id, value: r.value, rating: r.rating, postId: r.postId, userId: r.userId })));
+        }
+        
+        const avgRating = ratings.length > 0
+          ? ratings.reduce((sum, r) => {
+              const value = r.value || 0;
+              return sum + value;
+            }, 0) / ratings.length
+          : 0;
+        
+        // Count comments for this post
+        const commentCount = await Comment.countDocuments({ postId: post._id });
+        
+        return {
+          ...(post.toObject ? post.toObject() : post),
+          avgRating: Math.round(avgRating),
+          totalRatings: ratings.length,
+          comments: commentCount
+        };
+      })
+    );
+
     // Debug logging
-    console.log('getAllPosts: Found', posts.length, 'posts');
-    if (posts.length > 0) {
+    console.log('getAllPosts: Found', postsWithRatings.length, 'posts');
+    if (postsWithRatings.length > 0) {
       console.log('Sample post structure:', {
-        _id: posts[0]._id,
-        title: posts[0].title,
-        hasId: !!posts[0]._id,
-        idType: typeof posts[0]._id
-      });
+      _id: postsWithRatings[0]._id,
+      title: postsWithRatings[0].title,
+      hasId: !!postsWithRatings[0]._id,
+      idType: typeof postsWithRatings[0]._id,
+      rating: postsWithRatings[0].rating,
+      avgRating: postsWithRatings[0].avgRating,
+      totalRatings: postsWithRatings[0].totalRatings
+    });
     }
 
     res.json({
       totalPosts,
       totalPages: Math.ceil(totalPosts / limit),
       currentPage: page,
-      posts,
+      posts: postsWithRatings,
     });
   } catch (err) {
     console.error('Error in getAllPosts:', err);
@@ -191,7 +236,7 @@ export const getPostById = async (req, res) => {
     const post = await Post.findById(id)
       .populate({
         path: "authorId",
-        select: "username email avatarUrl bio createdAt",
+        select: "username email avatarUrl bio createdAt savedPosts followers following",
         populate: [
           {
             path: "followers",
@@ -202,6 +247,10 @@ export const getPostById = async (req, res) => {
             select: "username avatarUrl"
           }
         ]
+      })
+      .populate({
+        path: "savedBy",
+        select: "username avatarUrl"
       });
       
     if (!post) {
@@ -218,7 +267,16 @@ export const getPostById = async (req, res) => {
     const Comment = (await import('../models/Comment.js')).default;
     const comments = await Comment.find({ postId: id })
       .populate('authorId', 'username avatarUrl')
+      .populate({
+        path: 'parentCommentId',
+        populate: {
+          path: 'authorId',
+          select: 'username avatarUrl'
+        }
+      })
       .sort({ createdAt: -1 });
+    
+
     
     // Get author statistics if author exists
     let authorStats = null;
@@ -253,6 +311,7 @@ export const getPostById = async (req, res) => {
         totalViews,
         totalLikes,
         totalComments,
+        savedPostsCount: post.authorId.savedPosts?.length || 0,
         followersCount: post.authorId.followers?.length || 0,
         followingCount: post.authorId.following?.length || 0,
         joinedAt: post.authorId.createdAt,
@@ -268,14 +327,30 @@ export const getPostById = async (req, res) => {
       commentsCount: comments.length,
       likesCount: post.likes?.length || 0,
       views: post.views,
-      authorStats: authorStats ? 'included' : 'none'
+      authorStats: authorStats ? 'included' : 'none',
+      authorStatsData: authorStats
+    });
+    
+    // Calculate average rating for this post
+    const ratings = await Rating.find({ postId: id });
+    const avgRating = ratings.length > 0
+      ? ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
+      : 0;
+    const totalRatings = ratings.length;
+    
+    console.log('Rating calculation:', {
+      postId: id,
+      totalRatings,
+      avgRating: Math.round(avgRating)
     });
     
     // Build enhanced response with author information
     const enhancedPost = {
-      ...post.toObject(),
+      ...(post.toObject ? post.toObject() : post),
       comments,
-      authorStats
+      authorStats,
+      avgRating: Math.round(avgRating),
+      totalRatings
     };
     
     // Add user's like status if user is authenticated
@@ -414,35 +489,117 @@ export const removePostById = async (req, res) => {
 
 export const likePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(req.params.id).populate('authorId', 'username');
     if (!post) return res.status(404).json({ msg: "Post not found" });
 
     const userId = req.user.id;
     const index = post.likes.indexOf(userId);
+    
+    let isLiked = false;
 
-    if (index === -1) post.likes.push(userId); // Like
-    else post.likes.splice(index, 1); // Unlike
+    if (index === -1) {
+      // Like the post
+      post.likes.push(userId);
+      isLiked = true;
+      
+      // Create notification if user is not liking their own post
+      if (post.authorId && post.authorId._id.toString() !== userId) {
+        try {
+          await createNotificationHelper({
+            userId: post.authorId._id,
+            fromUserId: userId,
+            type: 'like',
+            title: 'Bài viết được thích',
+            message: `đã thích bài viết "${post.title}" của bạn`,
+            postId: post._id,
+            data: { 
+              postTitle: post.title,
+              gameName: post.gameName 
+            }
+          });
+          console.log('Like notification created for post:', post._id);
+        } catch (notifError) {
+          console.error('Error creating like notification:', notifError);
+          // Don't fail the like operation if notification fails
+        }
+      }
+    } else {
+      // Unlike the post
+      post.likes.splice(index, 1);
+      isLiked = false;
+    }
+    
     await post.save();
-    res.json(post);
+    
+    console.log('Post like action:', {
+      postId: post._id,
+      userId,
+      action: isLiked ? 'liked' : 'unliked',
+      totalLikes: post.likes.length
+    });
+    
+    res.json({
+      success: true,
+      isLiked,
+      likesCount: post.likes.length,
+      data: post
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error in likePost:', err);
+    res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
   }
 };
 
 export const savePost = async (req, res) => {
-  const post = await Post.findById(req.params.id);
-  const user = await User.findById(req.user.id);
-  const index = user.savedPosts.indexOf(post._id);
-  if (index === -1) {
-    user.savedPosts.push(post._id);
-    post.savedBy.push(user._id);
-  } else {
-    user.savedPosts.splice(index, 1);
-    post.savedBy.splice(index, 1);
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+    
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const userSavedIndex = user.savedPosts.indexOf(post._id);
+    let isSaved = false;
+    
+    if (userSavedIndex === -1) {
+      // Save the post
+      user.savedPosts.push(post._id);
+      post.savedBy.push(user._id);
+      isSaved = true;
+    } else {
+      // Unsave the post
+      user.savedPosts.splice(userSavedIndex, 1);
+      // Find the correct index in post.savedBy array
+      const postSavedIndex = post.savedBy.indexOf(user._id);
+      if (postSavedIndex !== -1) {
+        post.savedBy.splice(postSavedIndex, 1);
+      }
+      isSaved = false;
+    }
+    
+    await user.save();
+    await post.save();
+    
+    res.json({
+      success: true,
+      isSaved,
+      savedByCount: post.savedBy.length,
+      userSavedPosts: user.savedPosts
+    });
+  } catch (error) {
+    console.error('Error in savePost:', error);
+    res.status(500).json({ 
+      message: "Server error while saving post", 
+      error: error.message 
+    });
   }
-  await user.save();
-  await post.save();
-  res.json(user.savedPosts);
 };
 
 export const getPostByTitle = async (req, res) => {
@@ -508,6 +665,10 @@ export const searchPosts = async (req, res) => {
         additionalFilters.rating = { $gte: 4 };
       } else if (rating === '3+') {
         additionalFilters.rating = { $gte: 3 };
+      } else if (rating === '2+') {
+        additionalFilters.rating = { $gte: 2 };
+      } else if (rating === '1+') {
+        additionalFilters.rating = { $gte: 1 };
       }
     }
 
@@ -571,14 +732,35 @@ export const searchPosts = async (req, res) => {
 
     const posts = await postsQuery;
     
+    // Add average rating calculation and comment count for each post
+    const Comment = (await import('../models/Comment.js')).default;
+    const postsWithRatings = await Promise.all(
+      posts.map(async (post) => {
+        const ratings = await Rating.find({ postId: post._id });
+        const avgRating = ratings.length > 0
+          ? ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
+          : 0;
+        
+        // Count comments for this post
+        const commentCount = await Comment.countDocuments({ postId: post._id });
+        
+        return {
+        ...(post.toObject ? post.toObject() : post),
+          avgRating: Math.round(avgRating),
+          totalRatings: ratings.length,
+          comments: commentCount
+        };
+      })
+    );
+    
     // Get total count for pagination
     const totalPosts = await Post.countDocuments(finalQuery);
     const totalPages = Math.ceil(totalPosts / parseInt(limit));
 
     // Filter by author if specified (after population)
-    let filteredPosts = posts;
+    let filteredPosts = postsWithRatings;
     if (author && author !== 'all') {
-      filteredPosts = posts.filter(post => 
+      filteredPosts = postsWithRatings.filter(post => 
         post.authorId?.username?.toLowerCase().includes(author.toLowerCase())
       );
     }
@@ -611,10 +793,10 @@ export const searchPosts = async (req, res) => {
       // Boost popular posts
       relevanceScore += (post.likes?.length || 0) * 2;
       relevanceScore += (post.views || 0) * 0.1;
-      relevanceScore += (post.rating || 0) * 5;
+      relevanceScore += (post.avgRating || 0) * 5;
       
       return {
-        ...post.toObject(),
+        ...(post.toObject ? post.toObject() : post),
         relevanceScore
       };
     });
@@ -675,6 +857,7 @@ export const getTrendingPosts = async (req, res) => {
 
     const posts = await Post.find().populate("authorId", "username").lean();
 
+    const Comment = (await import('../models/Comment.js')).default;
     const postsWithScore = await Promise.all(
       posts.map(async (post) => {
         // Lấy rating trung bình
@@ -684,6 +867,9 @@ export const getTrendingPosts = async (req, res) => {
             ? ratings.reduce((sum, r) => sum + r.value, 0) / ratings.length
             : 0;
 
+        // Count comments for this post
+        const commentCount = await Comment.countDocuments({ postId: post._id });
+
         // Công thức tính điểm trending theo gpt
         const score =
           post.views * 0.4 + (post.likes?.length || 0) * 0.3 + avgRating * 2;
@@ -692,6 +878,7 @@ export const getTrendingPosts = async (req, res) => {
           ...post,
           avgRating,
           score,
+          comments: commentCount,
         };
       })
     );
@@ -705,30 +892,7 @@ export const getTrendingPosts = async (req, res) => {
   }
 };
 
-// Debug route to check database posts
-export const debugPosts = async (req, res) => {
-  try {
-    const postCount = await Post.countDocuments();
-    const posts = await Post.find().limit(5).populate("authorId");
-    
-    const samplePost = posts.length > 0 ? {
-      _id: posts[0]._id,
-      title: posts[0].title,
-      content: posts[0].content?.substring(0, 100) + '...',
-      authorId: posts[0].authorId,
-      createdAt: posts[0].createdAt
-    } : null;
-    
-    res.json({
-      totalCount: postCount,
-      samplePosts: posts.length,
-      samplePost,
-      allPostIds: posts.map(p => ({ id: p._id, title: p.title }))
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+
 
 export const getSavedPosts = async (req, res) => {
   try {
@@ -741,5 +905,81 @@ export const getSavedPosts = async (req, res) => {
     res.json(posts);
   } catch (err) {
     res.status(500).json({ message: "Lỗi server", error: err.message });
+  }
+};
+
+// Get posts by genre
+export const getPostsByGenre = async (req, res) => {
+  try {
+    const { genre } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    
+    const posts = await Post.find({ 
+      genres: { $in: [genre] } 
+    })
+    .populate('authorId', 'username avatarUrl')
+    .sort({ createdAt: -1 })
+    .limit(limit * 1)
+    .skip((page - 1) * limit)
+    .exec();
+    
+    const total = await Post.countDocuments({ genres: { $in: [genre] } });
+    
+    res.status(200).json({
+      posts,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get posts by platform
+export const getPostsByPlatform = async (req, res) => {
+  try {
+    const { platform } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    
+    const posts = await Post.find({ 
+      platforms: { $in: [platform] } 
+    })
+    .populate('authorId', 'username avatarUrl')
+    .sort({ createdAt: -1 })
+    .limit(limit * 1)
+    .skip((page - 1) * limit)
+    .exec();
+    
+    const total = await Post.countDocuments({ platforms: { $in: [platform] } });
+    
+    res.status(200).json({
+      posts,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get all available genres
+export const getAllGenres = async (req, res) => {
+  try {
+    const genres = await Post.distinct('genres');
+    res.status(200).json(genres.filter(genre => genre && genre.trim() !== ''));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get all available platforms
+export const getAllPlatforms = async (req, res) => {
+  try {
+    const platforms = await Post.distinct('platforms');
+    res.status(200).json(platforms.filter(platform => platform && platform.trim() !== ''));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

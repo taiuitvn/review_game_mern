@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks';
-import { FaBookmark, FaRegBookmark, FaHeart, FaComment, FaEye } from 'react-icons/fa';
+import { FaBookmark, FaRegBookmark, FaHeart, FaComment, FaEye, FaStar } from 'react-icons/fa';
+import { truncateText } from '../../utils/textUtils';
 
 const ReviewListItem = ({ review }) => {
   // Debug logging to check review data
@@ -56,7 +57,7 @@ const ReviewListItem = ({ review }) => {
             {review.title}
           </h3>
           <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-            {review.content}
+            {truncateText(review.content, 200)}
           </p>
           <div className="flex items-center justify-between text-sm text-gray-500">
             <div className="flex items-center space-x-4">
@@ -70,8 +71,19 @@ const ReviewListItem = ({ review }) => {
               </span>
               <span className="flex items-center gap-1">
                 <FaComment className="text-xs" />
-                {review.comments?.length || 0} bình luận
+                {Array.isArray(review.comments) ? review.comments.length : (review.comments || 0)} bình luận
               </span>
+              {review.rating !== undefined && typeof review.rating === 'number' && (
+                <span className="flex items-center gap-1">
+                  <FaStar className="text-xs text-yellow-400" />
+                  {Math.round(review.rating)} sao
+                </span>
+              )}
+              {review.totalRatings !== undefined && (
+                <span className="flex items-center gap-1">
+                  <span className="text-xs opacity-75">({review.totalRatings} đánh giá)</span>
+                </span>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               {review.tags?.slice(0, 3).map((tag, index) => (

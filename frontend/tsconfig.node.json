@@ -1,11 +1,15 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "composite": true,
-    "skipLibCheck": true,
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "strict": true
+    "moduleResolution": "Node",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,   // <- bật để cho phép allowImportingTsExtensions
+    "declaration": true,
+    "skipLibCheck": true
   },
-  "include": ["vite.config.js"]
+  "include": ["vite.config.ts", "vite.config.js"]
 }

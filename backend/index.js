@@ -1,5 +1,6 @@
 import app from "./server.js";
 import dotenv from "dotenv";
+
 async function main() {
   dotenv.config();
   // const client = new mongodb.MongoClient(process.env.MOVIE_REVIEWS_APP_URI);

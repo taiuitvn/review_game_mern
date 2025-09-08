@@ -68,7 +68,7 @@ export interface Rating {
   _id: string;
   postId: string;
   userId: string;
-  value: number;
+  rating: number;
   createdAt: string;
   updatedAt: string;
 }

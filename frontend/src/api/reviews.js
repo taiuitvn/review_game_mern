@@ -1,28 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE_URL,
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const profile = localStorage.getItem('profile');
-  if (profile) {
-    try {
-      const parsedProfile = JSON.parse(profile);
-      const token = parsedProfile.token;
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (error) {
-      console.error('Error parsing profile from localStorage:', error);
-    }
-  }
-  return config;
-});
+import api from './index';
 
 // Posts/Reviews API functions
 export const getAllPosts = async (page = 1, limit = 10) => {
@@ -122,7 +98,6 @@ export const searchPostsAdvanced = async (query, filters = {}) => {
     const params = new URLSearchParams();
     params.append('q', query);
     
-    // Add optional filters
     if (filters.sortBy) params.append('sortBy', filters.sortBy);
     if (filters.rating && filters.rating !== 'all') params.append('rating', filters.rating);
     if (filters.tags && filters.tags !== 'all') params.append('tags', filters.tags);
@@ -256,7 +231,6 @@ export const incrementPostViews = async (postId) => {
   }
 };
 
-// Alias for reviews (same as posts)
 export const getAllReviews = getAllPosts;
 export const getReviewById = getPostById;
 export const createReview = createPost;
@@ -267,5 +241,58 @@ export const getTrendingReviews = getTrendingPosts;
 export const searchReviews = searchPosts;
 export const searchPostsByTitle = searchPosts;
 export const fetchReviews = getAllPosts;
+
+// Genre and Platform specific API functions
+export const getPostsByGenre = async (genre, page = 1, limit = 10) => {
+  try {
+    const response = await api.get(`/posts/genre/${encodeURIComponent(genre)}?page=${page}&limit=${limit}`);
+    console.log('getPostsByGenre API response:', {
+      status: response.status,
+      data: response.data,
+      genre: genre
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching posts by genre:', error);
+    throw error;
+  }
+};
+
+export const getPostsByPlatform = async (platform, page = 1, limit = 10) => {
+  try {
+    const response = await api.get(`/posts/platform/${encodeURIComponent(platform)}?page=${page}&limit=${limit}`);
+    console.log('getPostsByPlatform API response:', {
+      status: response.status,
+      data: response.data,
+      platform: platform
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching posts by platform:', error);
+    throw error;
+  }
+};
+
+export const getAllGenres = async () => {
+  try {
+    const response = await api.get('/posts/genres');
+    console.log('getAllGenres API response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching genres:', error);
+    throw error;
+  }
+};
+
+export const getAllPlatforms = async () => {
+  try {
+    const response = await api.get('/posts/platforms');
+    console.log('getAllPlatforms API response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching platforms:', error);
+    throw error;
+  }
+};
 
 export default api;

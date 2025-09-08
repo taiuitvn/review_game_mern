@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchReviews } from '../../api/reviews';
+import { getAllPosts } from '../../api/reviews';
 import AnimatedCard from '../../components/common/AnimatedCard';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton';
 import Pagination from '../../components/common/Pagination';
 import { FaGamepad, FaFilter, FaSortAmountDown, FaSearch, FaFire } from 'react-icons/fa';
 
 const GenrePage = () => {
-  const { slug } = useParams();
+  const { genre } = useParams();
   const [items, setItems] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [sortBy, setSortBy] = useState('newest');
@@ -17,10 +17,10 @@ const GenrePage = () => {
 
   React.useEffect(() => {
     setLoading(true);
-    console.log('Fetching reviews for genre:', slug);
-    fetchReviews()
+    console.log('Fetching all posts for frontend filtering');
+    getAllPosts()
       .then((resp) => {
-        console.log('Genre page response:', resp);
+        console.log('All posts response:', resp);
         
         // Handle different response formats
         let data = [];
@@ -34,20 +34,28 @@ const GenrePage = () => {
           data = resp.posts;
         }
         
-        console.log('Processed genre data:', data);
+        console.log('All posts data:', data);
         setItems(Array.isArray(data) ? data : []);
       })
       .catch((error) => {
-        console.error('Error fetching reviews for genre:', error);
+        console.error('Error fetching all posts:', error);
         setItems([]);
       })
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, []);
 
-  const normalized = slug?.toLowerCase();
   const filtered = useMemo(() => {
     const safeItems = Array.isArray(items) ? items : [];
-    let result = safeItems.filter(r => (r.genres || r.tags || []).map((g) => String(g).toLowerCase()).some(g => g === normalized));
+    let result = safeItems;
+    
+    // Filter by genre first
+    if (genre) {
+      const targetGenre = genre.charAt(0).toUpperCase() + genre.slice(1).toLowerCase();
+      result = result.filter(item => 
+        item.genres && Array.isArray(item.genres) && 
+        item.genres.some(g => g.toLowerCase() === targetGenre.toLowerCase())
+      );
+    }
     
     // Apply search filter
     if (searchTerm.trim()) {
@@ -66,7 +74,7 @@ const GenrePage = () => {
         result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         break;
       case 'rating':
-        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        result.sort((a, b) => (b.avgRating !== undefined ? b.avgRating : (b.rating || 0)) - (a.avgRating !== undefined ? a.avgRating : (a.rating || 0)));
         break;
       case 'views':
         result.sort((a, b) => (b.views || 0) - (a.views || 0));
@@ -79,7 +87,7 @@ const GenrePage = () => {
     }
     
     return result;
-  }, [items, normalized, searchTerm, sortBy]);
+  }, [items, searchTerm, sortBy, genre]);
 
   // Pagination logic
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -92,7 +100,14 @@ const GenrePage = () => {
   // Reset to first page when filters change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortBy, slug]);
+  }, [searchTerm, sortBy, genre]);
+
+  // Reset to first page if current page exceeds total pages
+  React.useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
 
   if (loading) {
     return (
@@ -129,10 +144,10 @@ const GenrePage = () => {
             </div>
             <div>
               <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white">
-                Thể loại: <span className="text-indigo-600 dark:text-indigo-400 capitalize">{slug}</span>
+                Thể loại: <span className="text-indigo-600 dark:text-indigo-400 capitalize">{genre}</span>
               </h1>
               <p className="text-gray-600 dark:text-gray-300 text-lg">
-                Khám phá {filtered.length} bài review thuộc thể loại "{slug}"
+                Khám phá {filtered.length} bài review thuộc thể loại "{genre}"
               </p>
             </div>
           </div>
@@ -143,7 +158,7 @@ const GenrePage = () => {
           {/* Search Bar */}
           <div className="relative flex-1">
             <label htmlFor="search-input" className="sr-only">
-              Tìm kiếm bài review trong thể loại {slug}
+              Tìm kiếm bài review trong thể loại {genre}
             </label>
             <FaSearch className="absolute top-1/2 left-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" aria-hidden="true" />
             <input
@@ -194,8 +209,8 @@ const GenrePage = () => {
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
                 {searchTerm 
-                  ? `Không có bài review nào khớp với "${searchTerm}" trong thể loại ${slug}`
-                  : `Chưa có review nào thuộc thể loại "${slug}". Hãy quay lại sau hoặc khám phá các thể loại khác.`
+                  ? `Không có bài review nào khớp với "${searchTerm}" trong thể loại ${genre}`
+                  : `Chưa có review nào thuộc thể loại "${genre}". Hãy quay lại sau hoặc khám phá các thể loại khác.`
                 }
               </p>
             </div>

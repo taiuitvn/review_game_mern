@@ -1,12 +1,11 @@
 // RAWG API integration for game search
 import axios from 'axios';
 
-const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY || 'your-rawg-api-key-here';
-const RAWG_BASE_URL = 'https://api.rawg.io/api';
+const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY || 'https://api.rawg.io/api';
 
-// Create axios instance for RAWG API
+// Create axios instance for RAWG API (using proxy)
 const rawgApi = axios.create({
-  baseURL: RAWG_BASE_URL,
+  baseURL: '/rawg-api',
   params: {
     key: RAWG_API_KEY
   }
@@ -92,6 +91,38 @@ export const getGenres = async () => {
     return response;
   } catch (error) {
     console.error('Error fetching genres from RAWG:', error);
+    throw error;
+  }
+};
+
+// Get game platforms
+export const getPlatforms = async () => {
+  try {
+    const response = await rawgApi.get('/platforms');
+    console.log('RAWG API response for platforms:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Error fetching platforms from RAWG:', error);
+    throw error;
+  }
+};
+
+// Get games by platform
+export const getGamesByPlatform = async (platformId, page = 1, pageSize = 20) => {
+  try {
+    const response = await rawgApi.get('/games', {
+      params: {
+        platforms: platformId,
+        page,
+        page_size: pageSize,
+        ordering: '-rating'
+      }
+    });
+    
+    console.log('RAWG API response for games by platform:', platformId, response.data);
+    return response;
+  } catch (error) {
+    console.error('Error fetching games by platform from RAWG:', error);
     throw error;
   }
 };

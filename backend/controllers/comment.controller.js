@@ -1,5 +1,6 @@
 import Comment from "../models/Comment.js";
 import mongoose from "mongoose";
+import { createNotificationHelper } from "./notification.controller.js";
 
 export const getCommentByPostId = async (req, res) => {
   try {
@@ -21,7 +22,7 @@ export const getCommentByPostId = async (req, res) => {
       ).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)); // Replies in ascending order
       
       return {
-        ...comment.toObject(),
+        ...(comment.toObject ? comment.toObject() : comment),
         replies: commentReplies
       };
     });
@@ -73,6 +74,57 @@ export const createComment = async (req, res) => {
       author: populatedComment.authorId,
       isReply: !!populatedComment.parentCommentId
     });
+    
+    // Create notifications
+    try {
+      // Get post information
+      const Post = (await import('../models/Post.js')).default;
+      const post = await Post.findById(postId).populate('authorId', '_id username');
+      
+      if (post) {
+        if (parentCommentId) {
+          // This is a reply - notify the original comment author
+          const parentComment = await Comment.findById(parentCommentId).populate('authorId', '_id username');
+          if (parentComment && parentComment.authorId._id.toString() !== authorId) {
+            await createNotificationHelper({
+              userId: parentComment.authorId._id,
+              fromUserId: authorId,
+              type: 'reply',
+              title: 'Phản hồi bình luận',
+              message: `đã phản hồi bình luận của bạn trong "${post.title}"`,
+              postId: post._id,
+              commentId: newComment._id,
+              data: {
+                postTitle: post.title,
+                parentCommentContent: parentComment.content.substring(0, 50)
+              }
+            });
+            console.log('Reply notification created');
+          }
+        } else {
+          // This is a new comment - notify the post author
+          if (post.authorId && post.authorId._id.toString() !== authorId) {
+            await createNotificationHelper({
+              userId: post.authorId._id,
+              fromUserId: authorId,
+              type: 'comment',
+              title: 'Bình luận mới',
+              message: `đã bình luận về bài viết "${post.title}" của bạn`,
+              postId: post._id,
+              commentId: newComment._id,
+              data: {
+                postTitle: post.title,
+                commentPreview: content.substring(0, 50) + (content.length > 50 ? '...' : '')
+              }
+            });
+            console.log('Comment notification created');
+          }
+        }
+      }
+    } catch (notifError) {
+      console.error('Error creating comment notification:', notifError);
+      // Don't fail the comment creation if notification fails
+    }
     
     res.status(201).json(populatedComment);
   } catch (err) {

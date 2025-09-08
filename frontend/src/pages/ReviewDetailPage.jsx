@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getReviewById , commentOnReview, likeReview, deleteComment, incrementPostViews, replyToComment, updateReview, deleteReview } from '../api/reviews'; 
+import { getReviewById , commentOnReview, likeReview, deleteComment, incrementPostViews, replyToComment, updateReview, deleteReview, getCommentsByPostId } from '../api/reviews'; 
 import { useAuth } from '../hooks';
 import { useNotification } from '../contexts/NotificationContext';
+import RatingComponent from '../components/reviews/RatingComponent';
 import { FaBookmark, FaRegBookmark, FaHeart, FaShare, FaArrowLeft, FaThumbsUp, FaClock, FaEye, FaComments, FaGamepad, FaCalendarAlt, FaUser, FaEdit, FaTrashAlt, FaEllipsisV } from 'react-icons/fa';
 import Comment from '../components/reviews/Comment';
-import SuggestedReviews from '../components/reviews/SuggestedReviews'; 
+import SuggestedReviews from '../components/reviews/SuggestedReviews';
+
+import { getReadingTime, getWordCount, truncateText } from '../utils/textUtils';
 
 const ReviewDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, saveReview, unsaveReview, isReviewSaved } = useAuth();
-  const { addNotification } = useNotification();
+  const { user, savePost, unsavePost, isPostSaved, likePost } = useAuth();
+  const { showNotification } = useNotification();
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
+  const [savesCount, setSavesCount] = useState(0);
   const [isLiking, setIsLiking] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -56,13 +60,23 @@ const ReviewDetailPage = () => {
             id: reviewData.authorId._id,
             name: reviewData.authorId.username,
             avatar: reviewData.authorId.avatarUrl || 'https://via.placeholder.com/150',
-            isVerified: reviewData.authorId.isVerified || false
+            isVerified: reviewData.authorId.isVerified || false,
+            // Include author statistics from backend authorStats
+            totalReviews: reviewData.authorStats?.totalPosts || 0,
+            savedPosts: reviewData.authorStats?.savedPostsCount || 0,
+            followers: reviewData.authorStats?.followersCount || 0,
+            following: reviewData.authorStats?.followingCount || 0,
+            totalViews: reviewData.authorStats?.totalViews || 0,
+            totalLikes: reviewData.authorStats?.totalLikes || 0,
+            totalComments: reviewData.authorStats?.totalComments || 0,
+            joinedAt: reviewData.authorStats?.joinedAt || reviewData.authorId.createdAt
           };
         }
         
         // Map comment authors properly
         if (reviewData?.comments && Array.isArray(reviewData.comments)) {
-          reviewData.comments = reviewData.comments.map(comment => {
+          // First, map all comments to ensure proper structure
+          const mappedComments = reviewData.comments.map(comment => {
             const mappedComment = {
               ...comment,
               _id: comment._id || comment.id, // Ensure _id exists
@@ -85,9 +99,25 @@ const ReviewDetailPage = () => {
             
             return mappedComment;
           });
+          
+          // Then, structure comments with replies
+          const topLevelComments = mappedComments.filter(comment => !comment.parentCommentId);
+          const replyComments = mappedComments.filter(comment => comment.parentCommentId);
+          
+          // Attach replies to their parent comments
+          const commentsWithReplies = topLevelComments.map(comment => {
+            const replies = replyComments.filter(reply => reply.parentCommentId === comment._id);
+            return {
+              ...comment,
+              replies: replies.length > 0 ? replies : undefined
+            };
+          });
+          
+          reviewData.comments = commentsWithReplies;
         }
-        
+
         setReview(reviewData);
+        await fetchAndSetComments(id);
       } catch (error) {
         console.error("Failed to fetch review:", error);
         if (error.response?.status === 404) {
@@ -135,32 +165,61 @@ const ReviewDetailPage = () => {
       
       setIsLiked(userHasLiked);
       setLikesCount(Array.isArray(review.likes) ? review.likes.length : 0);
+      // Use savedBy array length for saves count
+      setSavesCount(Array.isArray(review.savedBy) ? review.savedBy.length : 0);
     }
   }, [review, user]);
+
+  // Add a useEffect to update like/save counts when the user context changes
+  useEffect(() => {
+    if (review) {
+      // Update saves count based on review's savedBy array
+      const currentSavesCount = Array.isArray(review.savedBy) ? review.savedBy.length : 0;
+      setSavesCount(currentSavesCount);
+      
+      // Update likes count based on review's likes array
+      const currentLikesCount = Array.isArray(review.likes) ? review.likes.length : 0;
+      setLikesCount(currentLikesCount);
+      
+      // Update like status based on current user
+      if (user && review.likes) {
+        const userHasLiked = review.likes.includes(user._id || user.id);
+        setIsLiked(userHasLiked);
+      }
+    }
+  }, [user, review]);
 
   // Separate useEffect to increment view count once when review is loaded
   useEffect(() => {
     let hasIncrementedView = false; // Prevent multiple calls in strict mode
     
     if (review && review._id && !hasIncrementedView) {
-      const incrementView = async () => {
-        try {
-          console.log('Incrementing view count for review:', review._id);
-          await incrementPostViews(review._id);
-          hasIncrementedView = true;
-          
-          // Update local review state to reflect new view count
-          setReview(prev => prev ? {
-            ...prev,
-            views: (prev.views || 0) + 1
-          } : prev);
-        } catch (error) {
-          console.error('Failed to increment view count:', error);
-          // Non-critical error, don't show notification to user
-        }
-      };
-      
-      incrementView();
+      // Check if we've already incremented the view count for this session
+      const viewedReviews = JSON.parse(sessionStorage.getItem('viewedReviews') || '[]');
+      if (!viewedReviews.includes(review._id)) {
+        const incrementView = async () => {
+          try {
+            console.log('Incrementing view count for review:', review._id);
+            await incrementPostViews(review._id);
+            hasIncrementedView = true;
+            
+            // Add to viewed reviews in sessionStorage
+            viewedReviews.push(review._id);
+            sessionStorage.setItem('viewedReviews', JSON.stringify(viewedReviews));
+            
+            // Update local review state to reflect new view count
+            setReview(prev => prev ? {
+              ...prev,
+              views: (prev.views || 0) + 1
+            } : prev);
+          } catch (error) {
+            console.error('Failed to increment view count:', error);
+            // Non-critical error, don't show notification to user
+          }
+        };
+        
+        incrementView();
+      }
     }
   }, [review?._id]); // Only depend on review._id to prevent multiple calls
 
@@ -230,22 +289,12 @@ const ReviewDetailPage = () => {
         });
 
         // Show notification
-        addNotification({
-          type: 'success',
-          title: 'Bình luận thành công!',
-          message: 'Bình luận của bạn đã được đăng.',
-          persistent: false
-        });
+        showNotification('Bình luận của bạn đã được đăng.', 'success');
 
         setComment(''); 
     } catch (error) {
         console.error("Failed to post comment:", error);
-        addNotification({
-          type: 'error',
-          title: 'Lỗi!',
-          message: 'Không thể đăng bình luận. Vui lòng thử lại.',
-          persistent: false
-        });
+        showNotification('Không thể đăng bình luận. Vui lòng thử lại.', 'error');
     }
   };
 
@@ -288,25 +337,57 @@ const ReviewDetailPage = () => {
     
     try {
       await deleteComment(commentId);
-      setReview(prevReview => ({
-        ...prevReview,
-        comments: prevReview.comments.filter(c => c._id !== commentId)
-      }));
       
-      addNotification({
-        type: 'success',
-        title: 'Đã xóa bình luận!',
-        message: 'Bình luận đã được xóa thành công.',
-        persistent: false
-      });
+      // Reload comments from server to get updated data
+      await fetchAndSetComments(id);
+      
+      showNotification('Bình luận đã được xóa thành công.', 'success');
     } catch (error) {
       console.error('Error deleting comment:', error);
-      addNotification({
-        type: 'error',
-        title: 'Lỗi!',
-        message: 'Không thể xóa bình luận. Vui lòng thử lại.',
-        persistent: false
-      });
+      showNotification('Không thể xóa bình luận. Vui lòng thử lại.', 'error');
+    }
+  };
+
+  // Function to fetch and set comments
+  const fetchAndSetComments = async (postId) => {
+    try {
+      const commentsResponse = await getCommentsByPostId(postId || id);
+      const commentsData = commentsResponse?.data || commentsResponse;
+      
+      if (Array.isArray(commentsData)) {
+        // First, map all comments to ensure proper structure
+        const mappedComments = commentsData.map(comment => ({
+          ...comment,
+          _id: comment._id || comment.id,
+          author: comment.authorId ? {
+            id: comment.authorId._id,
+            name: comment.authorId.username,
+            avatar: comment.authorId.avatarUrl || 'https://via.placeholder.com/150',
+            isVerified: comment.authorId.isVerified || false
+          } : null,
+          text: comment.content || comment.text
+        }));
+        
+        // Then, structure comments with replies
+        const topLevelComments = mappedComments.filter(comment => !comment.parentCommentId);
+        const replyComments = mappedComments.filter(comment => comment.parentCommentId);
+        
+        // Attach replies to their parent comments
+        const commentsWithReplies = topLevelComments.map(comment => {
+          const replies = replyComments.filter(reply => reply.parentCommentId === comment._id);
+          return {
+            ...comment,
+            replies: replies.length > 0 ? replies : undefined
+          };
+        });
+        
+        setReview(prevReview => ({
+          ...prevReview,
+          comments: commentsWithReplies
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch comments:', error);
     }
   };
 
@@ -317,12 +398,7 @@ const ReviewDetailPage = () => {
       // Validate inputs
       if (!id || !commentId || !replyText.trim()) {
         console.error('Invalid reply data:', { id, commentId, replyText });
-        addNotification({
-          type: 'error',
-          title: 'Lỗi!',
-          message: 'Dữ liệu trả lời không hợp lệ.',
-          persistent: false
-        });
+        showNotification('Dữ liệu trả lời không hợp lệ.', 'error');
         return;
       }
 
@@ -331,7 +407,7 @@ const ReviewDetailPage = () => {
       console.log('Reply response:', response);
       
       // The response should be the new reply comment with parentCommentId
-      const newReply = response;
+      const newReply = response?.data || response;
       
       // Map the reply data to expected format
       const mappedReply = {
@@ -359,53 +435,54 @@ const ReviewDetailPage = () => {
       console.log('Mapped reply:', mappedReply);
       
       // Update the review state to include the new reply
-      setReview(prevReview => ({
-        ...prevReview,
-        comments: prevReview.comments.map(comment =>
-          comment._id === commentId
-            ? { ...comment, replies: [...(comment.replies || []), mappedReply] }
-            : comment
-        )
-      }));
+      setReview(prevReview => {
+        if (!prevReview) return prevReview;
+        
+        return {
+          ...prevReview,
+          comments: prevReview.comments.map(comment =>
+            comment._id === commentId
+              ? { 
+                  ...comment, 
+                  replies: [...(comment.replies || []), mappedReply] 
+                }
+              : comment
+          )
+        };
+      });
 
       // Show success notification
-      addNotification({
-        type: 'success',
-        title: 'Trả lời thành công!',
-        message: 'Trả lời của bạn đã được đăng.',
-        persistent: false
-      });
+      showNotification('Trả lời của bạn đã được đăng.', 'success');
 
+      // Refresh comments to ensure consistency
+      await fetchAndSetComments(id);
     } catch (error) {
       console.error('Failed to reply to comment:', error);
-      addNotification({
-        type: 'error',
-        title: 'Lỗi!',
-        message: 'Không thể gửi trả lời. Vui lòng thử lại.',
-        persistent: false
-      });
+      showNotification('Không thể gửi trả lời. Vui lòng thử lại.', 'error');
     }
   };
 
-  const handleSaveToggle = () => {
+  const handleSaveToggle = async () => {
     if (!user) return;
 
-    if (isReviewSaved(id)) {
-      unsaveReview(id);
-      addNotification({
-        type: 'info',
-        title: 'Đã bỏ lưu',
-        message: 'Bài viết đã được bỏ khỏi danh sách đã lưu.',
-        persistent: false
-      });
-    } else {
-      saveReview(id);
-      addNotification({
-        type: 'success',
-        title: 'Đã lưu bài viết!',
-        message: 'Bài viết đã được thêm vào danh sách đã lưu.',
-        persistent: false
-      });
+    const wasSaved = isPostSaved(id);
+    
+    try {
+      // This will update the user context properly
+      await savePost(id);
+      
+      // Update the saves count for immediate UI feedback
+      setSavesCount(prevCount => wasSaved ? prevCount - 1 : prevCount + 1);
+      
+      showNotification(
+        wasSaved 
+          ? 'Bài viết đã được bỏ khỏi danh sách đã lưu.' 
+          : 'Bài viết đã được thêm vào danh sách đã lưu.', 
+        wasSaved ? 'info' : 'success'
+      );
+    } catch (error) {
+      console.error('Failed to toggle save:', error);
+      showNotification('Không thể cập nhật trạng thái lưu. Vui lòng thử lại.', 'error');
     }
   };
 
@@ -421,26 +498,28 @@ const ReviewDetailPage = () => {
       setIsLiked(newIsLiked);
       setLikesCount(newLikesCount);
 
-      await likeReview(id);
+      // Call API and get updated data
+      const response = await likePost(id);
+      console.log('Like response:', response);
 
-      addNotification({
-        type: newIsLiked ? 'success' : 'info',
-        title: newIsLiked ? 'Đã thích bài viết!' : 'Đã bỏ thích',
-        message: newIsLiked ? 'Cảm ơn bạn đã ủng hộ tác giả.' : 'Đã bỏ thích bài viết.',
-        persistent: false
-      });
+      // Update counts based on response
+      if (response && typeof response === 'object' && response.hasOwnProperty('likesCount')) {
+        // New API response format
+        setLikesCount(response.likesCount || 0);
+        setIsLiked(response.isLiked || false);
+      }
+
+      showNotification(
+        newIsLiked ? 'Cảm ơn bạn đã ủng hộ tác giả.' : 'Đã bỏ thích bài viết.',
+        newIsLiked ? 'success' : 'info'
+      );
 
     } catch {
       // Revert on error
       setIsLiked(!isLiked);
       setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
 
-      addNotification({
-        type: 'error',
-        title: 'Lỗi!',
-        message: 'Không thể thực hiện hành động này. Vui lòng thử lại.',
-        persistent: false
-      });
+      showNotification('Không thể thực hiện hành động này. Vui lòng thử lại.', 'error');
     } finally {
       setIsLiking(false);
     }
@@ -481,22 +560,12 @@ const ReviewDetailPage = () => {
     setIsDeleting(true);
     try {
       await deleteReview(id);
-      addNotification({
-        type: 'success',
-        title: 'Đã xóa bài viết!',
-        message: 'Bài review của bạn đã được xóa thành công.',
-        persistent: false
-      });
+      showNotification('Bài review của bạn đã được xóa thành công.', 'success');
       // Navigate to home page after successful deletion
       navigate('/');
     } catch (error) {
       console.error('Error deleting review:', error);
-      addNotification({
-        type: 'error',
-        title: 'Lỗi!',
-        message: error.response?.data?.message || 'Không thể xóa bài viết. Vui lòng thử lại.',
-        persistent: false
-      });
+      showNotification(error.response?.data?.message || 'Không thể xóa bài viết. Vui lòng thử lại.', 'error');
       setShowDeleteConfirm(false);
     } finally {
       setIsDeleting(false);
@@ -547,7 +616,7 @@ const ReviewDetailPage = () => {
     );
   }
 
-  const contentPreview = (review.content || '').length > 500 ? (review.content || '').substring(0, 500) + '...' : (review.content || '');
+  const contentPreview = truncateText(review.content, 500);
   const shouldShowExpand = (review.content || '').length > 500;
 
   // Fallback values for missing properties
@@ -576,26 +645,25 @@ const ReviewDetailPage = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      {}
       <Link to="/" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors">
         <FaArrowLeft />
         <span>Quay lại trang chủ</span>
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {}
         <div className="lg:col-span-2">
 
-      {}
       <article className="bg-white rounded-lg shadow-lg overflow-hidden">
-        {}
         <div className="relative">
           <img src={safeReview.gameImage} alt={safeReview.title} className="w-full h-96 object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
           <div className="absolute bottom-6 left-6 text-white">
             <div className="flex items-center gap-4 mb-2">
               <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center text-2xl font-bold border-4 border-white shadow-lg">
-                {safeReview.rating || 'N/A'}
+                {safeReview.avgRating !== undefined && safeReview.avgRating > 0 
+                  ? `${Math.round(safeReview.avgRating)}`
+                : `${safeReview.rating || 0}`
+                }
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wider">{safeReview.genres?.join(', ')}</p>
@@ -615,10 +683,8 @@ const ReviewDetailPage = () => {
           </div>
         </div>
 
-        {}
         <div className="p-6 border-b border-gray-200">
           <div className="space-y-4">
-            {}
             <div className="flex items-center gap-3">
               <Link to={`/profile/${safeReview.author?.id}`} className="flex items-center gap-3 hover:text-indigo-600 transition-colors">
                 <img src={safeReview.author?.avatar} alt={safeReview.author?.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100" />
@@ -636,14 +702,13 @@ const ReviewDetailPage = () => {
                     </span>
                     <span className="flex items-center gap-1">
                       <FaEye />
-                      {safeReview.views || 0} lượt xem
+                      {review?.views || 0} lượt xem
                     </span>
                   </div>
                 </div>
               </Link>
             </div>
 
-            {}
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <div className="flex items-center gap-2 text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
                 <FaHeart className="text-xs" />
@@ -651,25 +716,22 @@ const ReviewDetailPage = () => {
               </div>
               <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full">
                 <FaComments className="text-xs" />
-                <span className="font-medium">{safeReview.comments?.length || 0} bình luận</span>
+                <span className="font-medium">{review?.comments?.length || 0} bình luận</span>
               </div>
               <div className="flex items-center gap-2 text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full">
                 <FaEye className="text-xs" />
-                <span className="font-medium">{safeReview.views || 0} lượt xem</span>
+                <span className="font-medium">{review?.views || 0} lượt xem</span>
               </div>
               <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
                 <FaBookmark className="text-xs" />
-                <span className="font-medium">{safeReview.saves || 0} đã lưu</span>
+                <span className="font-medium">{savesCount} đã lưu</span>
               </div>
             </div>
-
-
           </div>
         </div>
 
-        {}
         <div className="p-6">
-        <div className="prose lg:prose-xl max-w-none">
+          <div className="prose lg:prose-xl max-w-none">
             <div className="text-gray-700 leading-relaxed">
               <div
                 dangerouslySetInnerHTML={{
@@ -698,113 +760,112 @@ const ReviewDetailPage = () => {
             </div>
           </div>
 
-  {}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {user && (
                 <button
                   onClick={handleLikeToggle}
                   disabled={isLiking}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
                     isLiked
                       ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                      : user
-                        ? 'hover:bg-red-50 hover:text-red-500 text-gray-600'
-                        : 'opacity-50 cursor-not-allowed text-gray-400'
+                      : 'hover:bg-red-50 hover:text-red-500 text-gray-600'
                   }`}
                   title={isLiked ? 'Bỏ thích bài viết' : 'Thích bài viết'}
                 >
                   <FaHeart className={isLiked ? 'text-red-600' : ''} />
                   <span className="hidden sm:inline">{likesCount}</span>
                 </button>
+              )}
 
+              {user && (
                 <button
                   onClick={handleSaveToggle}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
-                    user && isReviewSaved(id)
+                    isPostSaved(id)
                       ? 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
-                      : user ? 'hover:bg-gray-100 hover:text-indigo-600 text-gray-600' : 'opacity-50 cursor-not-allowed text-gray-400'
+                      : 'hover:bg-gray-100 hover:text-indigo-600 text-gray-600'
                   }`}
-                  title={user && isReviewSaved(id) ? 'Bỏ lưu' : 'Lưu bài viết'}
+                  title={isPostSaved(id) ? 'Bỏ lưu' : 'Lưu bài viết'}
                 >
-                  {user && isReviewSaved(id) ? <FaBookmark /> : <FaRegBookmark />}
+                  {isPostSaved(id) ? <FaBookmark /> : <FaRegBookmark />}
                   <span className="hidden sm:inline">Lưu</span>
                 </button>
-
-                <button
-                  onClick={handleShare}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-blue-50 hover:text-blue-600 text-gray-600 transition-all"
-                  title="Chia sẻ bài viết"
-                >
-                  <FaShare />
-                  <span className="hidden sm:inline">Chia sẻ</span>
-                </button>
-              </div>
-
-              {/* Owner Actions */}
-              {isReviewOwner() && (
-                <div className="relative more-menu-container">
-                  <button
-                    onClick={() => setShowMoreMenu(!showMoreMenu)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-gray-100 text-gray-600 transition-all"
-                    title="Tùy chọn"
-                  >
-                    <FaEllipsisV />
-                  </button>
-                  
-                  {showMoreMenu && (
-                    <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-10">
-                      <button
-                        onClick={() => {
-                          handleEditReview();
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 hover:text-indigo-600 transition-colors"
-                      >
-                        <FaEdit className="text-sm" />
-                        Chỉnh sửa
-                      </button>
-                      
-                      {!showDeleteConfirm ? (
-                        <button
-                          onClick={() => {
-                            setShowDeleteConfirm(true);
-                            setShowMoreMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors"
-                        >
-                          <FaTrashAlt className="text-sm" />
-                          Xóa bài viết
-                        </button>
-                      ) : (
-                        <div className="px-4 py-2 border-t border-gray-100">
-                          <p className="text-sm text-gray-600 mb-2">Xác nhận xóa?</p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={handleDeleteReview}
-                              disabled={isDeleting}
-                              className="flex-1 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50 transition-colors"
-                            >
-                              {isDeleting ? 'Xóa...' : 'Xóa'}
-                            </button>
-                            <button
-                              onClick={() => setShowDeleteConfirm(false)}
-                              className="flex-1 bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
-                            >
-                              Hủy
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
               )}
+
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-blue-50 hover:text-blue-600 text-gray-600 transition-all"
+                title="Chia sẻ bài viết"
+              >
+                <FaShare />
+                <span className="hidden sm:inline">Chia sẻ</span>
+              </button>
             </div>
 
-          {}
+            {/* Owner Actions */}
+            {isReviewOwner() && (
+              <div className="relative more-menu-container">
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-gray-100 text-gray-600 transition-all"
+                  title="Tùy chọn"
+                >
+                  <FaEllipsisV />
+                </button>
+                
+                {showMoreMenu && (
+                  <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-10">
+                    <button
+                      onClick={() => {
+                        handleEditReview();
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 hover:text-indigo-600 transition-colors"
+                    >
+                      <FaEdit className="text-sm" />
+                      Chỉnh sửa
+                    </button>
+                    
+                    {!showDeleteConfirm ? (
+                      <button
+                        onClick={() => {
+                          setShowDeleteConfirm(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors"
+                      >
+                        <FaTrashAlt className="text-sm" />
+                        Xóa bài viết
+                      </button>
+                    ) : (
+                      <div className="px-4 py-2 border-t border-gray-100">
+                        <p className="text-sm text-gray-600 mb-2">Xác nhận xóa?</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleDeleteReview}
+                            disabled={isDeleting}
+                            className="flex-1 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50 transition-colors"
+                          >
+                            {isDeleting ? 'Xóa...' : 'Xóa'}
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(false)}
+                            className="flex-1 bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {}
               {safeReview.tags && safeReview.tags.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-3">🏷️ Tags</h4>
@@ -822,29 +883,9 @@ const ReviewDetailPage = () => {
                   </div>
                 </div>
               )}
-
-              {}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">📊 Thống kê</h4>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Thời gian đọc:</span>
-                    <span>{Math.ceil((safeReview.content || '').length / 200)} phút</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Số từ:</span>
-                    <span>{(safeReview.content || '').split(/\s+/).filter(word => word.length > 0).length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Cập nhật:</span>
-                    <span>{new Date(safeReview.updatedAt || safeReview.createdAt).toLocaleDateString('vi-VN')}</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
-          {}
           <div className="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100">
             <div className="flex items-center gap-4">
               <img
@@ -864,11 +905,24 @@ const ReviewDetailPage = () => {
               </div>
             </div>
           </div>
+
+          {/* Rating Section */}
+          <div className="mt-6">
+            <RatingComponent 
+              postId={id} 
+              onRatingUpdate={(ratingData) => {
+                // Optional: Update any local state if needed
+                console.log('Rating updated:', ratingData);
+              }}
+            />
+          </div>
         </div>
       </article>
 
-      {}
-      <section className="mt-12 bg-white rounded-lg shadow-lg p-6">
+
+
+      {/* Comments Section */}
+      <section className="mt-8 bg-white rounded-lg shadow-lg p-6">
         <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
           💬 Bình luận ({safeReview.comments?.length || 0})
         </h2>
@@ -918,37 +972,39 @@ const ReviewDetailPage = () => {
 
         <div className="space-y-6">
           {safeReview.comments && safeReview.comments.length > 0 ? (
-            safeReview.comments.map((c, index) => {
-              console.log(`Rendering comment ${index}:`, {
-                commentObject: c,
-                hasId: !!(c._id || c.id),
-                id: c._id || c.id,
-                key: c._id
-              });
-              
-              return (
-                <Comment
-                  key={c._id || c.id || `comment-${index}`}
-                  comment={c}
-                  onLike={handleCommentLike}
-                  onDislike={handleCommentDislike}
-                  onReply={handleCommentReply}
-                  onUpdate={handleCommentUpdate}
-                  onDelete={handleCommentDelete}
-                />
-              );
-            })
+            safeReview.comments
+              .filter(comment => !comment.parentCommentId) // Only show top-level comments
+              .map((c, index) => {
+                console.log(`Rendering comment ${index}:`, {
+                  commentObject: c,
+                  hasId: !!(c._id || c.id),
+                  id: c._id || c.id,
+                  key: c._id
+                });
+                
+                return (
+                  <Comment
+                    key={c._id || c.id || `comment-${index}`}
+                    comment={c}
+                    onLike={handleCommentLike}
+                    onDislike={handleCommentDislike}
+                    onReply={handleCommentReply}
+                    onUpdate={handleCommentUpdate}
+                    onDelete={handleCommentDelete}
+                  />
+                );
+              })
           ) : (
             <div className="text-center py-8">
               <p className="text-gray-500">Chưa có bình luận nào. Hãy là người đầu tiên bình luận!</p>
-                </div>
+            </div>
           )}
         </div>
+
       </section>
 
-        </div> {}
+        </div>
 
-        {}
         <div className="lg:col-span-1">
           <SuggestedReviews
             currentReviewId={id}
@@ -977,32 +1033,53 @@ const ReviewDetailPage = () => {
             </Link>
 
             <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="grid grid-cols-2 gap-4 text-center mb-4">
                 <div>
                   <div className="text-2xl font-bold text-indigo-600">{safeReview.author?.totalReviews || 0}</div>
                   <div className="text-xs text-gray-600">Bài viết</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-green-600">{safeReview.author?.followers || 0}</div>
-                  <div className="text-xs text-gray-600">Người theo dõi</div>
+                  <div className="text-2xl font-bold text-orange-600">{safeReview.author?.savedPosts || 0}</div>
+                  <div className="text-xs text-gray-600">đã lưu</div>
                 </div>
               </div>
+              
+              <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                <div>
+                  <div className="text-xl font-bold text-green-600">{safeReview.author?.followers || 0}</div>
+                  <div className="text-xs text-gray-600">Người theo dõi</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-blue-600">{safeReview.author?.following || 0}</div>
+                  <div className="text-xs text-gray-600">Đang theo dõi</div>
+                </div>
+              </div>
+              
+              {/* Additional stats if available */}
+              {(safeReview.author?.totalViews > 0 || safeReview.author?.totalLikes > 0) && (
+                <div className="grid grid-cols-2 gap-4 text-center pt-3 border-t border-gray-100">
+                  <div>
+                    <div className="text-lg font-semibold text-blue-600">{safeReview.author?.totalViews?.toLocaleString() || 0}</div>
+                    <div className="text-xs text-gray-600">Lượt xem</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-red-600">{safeReview.author?.totalLikes?.toLocaleString() || 0}</div>
+                    <div className="text-xs text-gray-600">Lượt thích</div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Join date if available */}
+              {safeReview.author?.joinedAt && (
+                <div className="text-xs text-gray-500 text-center mt-3 pt-3 border-t border-gray-100">
+                  Tham gia từ {new Date(safeReview.author.joinedAt).toLocaleDateString('vi-VN')}
+                </div>
+              )}
             </div>
           </div>
 
           {}
-          <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
-            <h4 className="font-semibold text-gray-900 mb-2">📖 Tiến độ đọc</h4>
-            <div className="text-sm text-gray-600 mb-2">
-              {isExpanded ? 'Đã đọc đầy đủ' : `Đã đọc ${Math.round((contentPreview.length / (safeReview.content || '').length) * 100)}%`}
-            </div>
-            <div className="w-full bg-blue-200 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: isExpanded ? '100%' : `${Math.round((contentPreview.length / (safeReview.content || '').length) * 100)}%` }}
-              ></div>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>

@@ -75,10 +75,13 @@ const RegisterPage = () => {
     try {
       const result = await register(formData);
       if (result?.success) {
+        // Navigate to home page after successful registration
         navigate('/');
       } else {
         setErrors({ general: result?.error || 'Đăng ký thất bại. Vui lòng thử lại.' });
       }
+    } catch (error) {
+      setErrors({ general: error?.message || 'Đăng ký thất bại. Vui lòng thử lại.' });
     } finally {
       setIsLoading(false);
     }

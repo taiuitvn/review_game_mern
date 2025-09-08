@@ -88,7 +88,7 @@ const TrendingPage = () => {
   }, [timeRange]);
 
   // Add debug logging
-  console.log('TrendingPage: reviews:', reviews.length, 'loading:', loading, 'error:', error);
+  console.log('TrendingPage: reviews:', reviews?.length || 0, 'loading:', loading, 'error:', error);
 
   // Sắp xếp theo trending score (likes + comments + views/100) - memoized for performance
   const sortedReviews = useMemo(() => {
@@ -113,7 +113,6 @@ const TrendingPage = () => {
     });
   }, [reviews]);
 
-  // Lấy top 3 bài viết nổi bật nhất
   const topThree = sortedReviews.slice(0, 3);
   const remainingReviews = sortedReviews.slice(3);
   
@@ -129,6 +128,13 @@ const TrendingPage = () => {
   React.useEffect(() => {
     setCurrentPage(1);
   }, [timeRange]);
+
+  // Reset to first page if current page exceeds total pages
+  React.useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
 
   if (loading) return (
     <div className="bg-gradient-to-br from-orange-50 via-red-50 to-pink-50 min-h-screen">
@@ -299,7 +305,15 @@ const TrendingPage = () => {
                     <div className="text-white">
                       <div className="flex items-center gap-3 mb-2">
                         <span className="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg">
-                          {review.rating ? `${review.rating}/5` : 'N/A'}
+                          {review.avgRating !== undefined && review.avgRating > 0 
+                            ? `${Math.round(review.avgRating)}` 
+                            : review.rating 
+                              ? `${review.rating}` 
+                              : '0'
+                          }
+                          {review.totalRatings && review.totalRatings > 0 && (
+                            <span className="ml-1 text-xs opacity-75">({review.totalRatings})</span>
+                          )}
                         </span>
                         {/* Genre badge: strong contrast, no white-on-white */}
                         <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">

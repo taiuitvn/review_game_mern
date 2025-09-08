@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchGames } from '../api/rawgApi';
-import { FaSearch, FaStar, FaTimes, FaEye, FaSave, FaImage, FaMagic, FaFileAlt, FaLightbulb } from 'react-icons/fa';
+import { searchGames, getGenres, getPlatforms } from '../api/rawgApi';
+import { FaSearch, FaStar, FaTimes, FaEye, FaSave, FaImage, FaMagic, FaFileAlt, FaLightbulb, FaPlus, FaGamepad } from 'react-icons/fa';
 import { createPost } from '../api/reviews';
 import { useAuth } from '../hooks';
 import { useNotification } from '../contexts/NotificationContext';
@@ -36,6 +36,14 @@ const CreateReviewPage = () => {
     const [selectedGame, setSelectedGame] = useState(null);
     const debounceTimeout = useRef(null);
 
+    // State cho tính năng tự tạo game
+    const [isCustomGameMode, setIsCustomGameMode] = useState(false);
+    const [customGameName, setCustomGameName] = useState('');
+    const [customGameGenres, setCustomGameGenres] = useState([]);
+    const [customGamePlatforms, setCustomGamePlatforms] = useState([]);
+    const [availableGenres, setAvailableGenres] = useState([]);
+    const [availablePlatforms, setAvailablePlatforms] = useState([]);
+
     // State cho tính năng nâng cao
     const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -45,6 +53,12 @@ const CreateReviewPage = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [errors, setErrors] = useState({});
     const [wordCount, setWordCount] = useState(0);
+
+    // State cho upload hình ảnh tùy chỉnh
+    const [customImage, setCustomImage] = useState(null);
+    const [customImagePreview, setCustomImagePreview] = useState(null);
+    const [imageHash, setImageHash] = useState(null);
+    const fileInputRef = useRef(null);
 
     // Cấu hình TipTap editor với auto-save và real-time validation
     const editor = useEditor({
@@ -131,6 +145,118 @@ const CreateReviewPage = () => {
         }
     }, [isAuthenticated, navigate, showWarning]);
 
+    // Load available genres and platforms on component mount
+    useEffect(() => {
+        const loadGenresAndPlatforms = async () => {
+            try {
+                console.log('Loading genres and platforms...');
+                const [genresData, platformsData] = await Promise.all([
+                    getGenres(),
+                    getPlatforms()
+                ]);
+                console.log('Genres data:', genresData);
+                console.log('Platforms data:', platformsData);
+                setAvailableGenres(genresData.data.results || []);
+                setAvailablePlatforms(platformsData.data.results || []);
+                console.log('Available genres set:', genresData.data.results?.length || 0);
+                console.log('Available platforms set:', platformsData.data.results?.length || 0);
+            } catch (error) {
+                console.error('Error loading genres and platforms:', error);
+                showError('Không thể tải danh sách thể loại và nền tảng');
+            }
+        };
+
+        loadGenresAndPlatforms();
+    }, []);
+
+    // Load draft from localStorage on component mount
+    useEffect(() => {
+        const loadDraft = () => {
+            try {
+                const savedDraft = localStorage.getItem('review-draft');
+                if (savedDraft) {
+                    const draftData = JSON.parse(savedDraft);
+                    console.log('Loading draft:', draftData);
+                    
+                    // Restore form data
+                    if (draftData.title) setTitle(draftData.title);
+                    if (draftData.rating) setRating(draftData.rating);
+                    if (draftData.tags) setTags(draftData.tags);
+                    if (draftData.selectedGame) setSelectedGame(draftData.selectedGame);
+                    
+                    // Restore editor content when editor is ready
+                    if (draftData.content && editor) {
+                        editor.commands.setContent(draftData.content);
+                    }
+                    
+                    setIsDraft(true);
+                    setDraftId(draftData.id);
+                    showInfo('Đã khôi phục bản nháp trước đó');
+                }
+            } catch (error) {
+                console.error('Error loading draft:', error);
+                localStorage.removeItem('review-draft'); // Remove corrupted draft
+            }
+        };
+
+        // Only load draft if user is authenticated
+        if (isAuthenticated) {
+            loadDraft();
+        }
+    }, [isAuthenticated, editor, showInfo]);
+
+    // Toggle custom game mode
+    const toggleCustomGameMode = () => {
+        setIsCustomGameMode(!isCustomGameMode);
+        if (!isCustomGameMode) {
+            // Reset search when entering custom mode
+            setSearchTerm('');
+            setSearchResults([]);
+            setSelectedGame(null);
+        } else {
+            // Reset custom game data when exiting custom mode
+            setCustomGameName('');
+            setCustomGameGenres([]);
+            setCustomGamePlatforms([]);
+        }
+    };
+
+    // Handle custom game genre selection
+    const handleGenreToggle = (genre) => {
+        console.log('Genre toggle clicked:', genre);
+        setCustomGameGenres(prev => {
+            const isSelected = prev.some(g => g.id === genre.id);
+            console.log('Genre is selected:', isSelected);
+            if (isSelected) {
+                const newGenres = prev.filter(g => g.id !== genre.id);
+                console.log('Removing genre, new list:', newGenres);
+                return newGenres;
+            } else {
+                const newGenres = [...prev, genre];
+                console.log('Adding genre, new list:', newGenres);
+                return newGenres;
+            }
+        });
+    };
+
+    // Handle custom game platform selection
+    const handlePlatformToggle = (platform) => {
+        console.log('Platform toggle clicked:', platform);
+        setCustomGamePlatforms(prev => {
+            const isSelected = prev.some(p => p.id === platform.id);
+            console.log('Platform is selected:', isSelected);
+            if (isSelected) {
+                const newPlatforms = prev.filter(p => p.id !== platform.id);
+                console.log('Removing platform, new list:', newPlatforms);
+                return newPlatforms;
+            } else {
+                const newPlatforms = [...prev, platform];
+                console.log('Adding platform, new list:', newPlatforms);
+                return newPlatforms;
+            }
+        });
+    };
+
     // Auto-save functionality
     const handleAutoSave = async () => {
         if (isSaving) return;
@@ -153,6 +279,75 @@ const CreateReviewPage = () => {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    // Hàm tạo hash cho hình ảnh
+    const generateImageHash = async (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const arrayBuffer = e.target.result;
+                const hashBuffer = new Uint8Array(arrayBuffer);
+                let hash = 0;
+                for (let i = 0; i < hashBuffer.length; i++) {
+                    hash = ((hash << 5) - hash + hashBuffer[i]) & 0xffffffff;
+                }
+                resolve(hash.toString());
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    };
+
+    // Hàm xử lý upload hình ảnh tùy chỉnh
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Kiểm tra định dạng file
+        if (!file.type.startsWith('image/')) {
+            showError('Vui lòng chọn file hình ảnh hợp lệ');
+            return;
+        }
+
+        // Kiểm tra kích thước file (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            showError('Kích thước hình ảnh không được vượt quá 5MB');
+            return;
+        }
+
+        try {
+            // Tạo preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setCustomImagePreview(e.target.result);
+            };
+            reader.readAsDataURL(file);
+
+            // Tạo base64 và hash
+            const base64Reader = new FileReader();
+            base64Reader.onload = async (e) => {
+                const base64 = e.target.result;
+                const hash = await generateImageHash(file);
+                setCustomImage(base64);
+                setImageHash(hash);
+                showSuccess('Đã tải lên hình ảnh thành công');
+            };
+            base64Reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            showError('Có lỗi xảy ra khi tải lên hình ảnh');
+        }
+    };
+
+    // Hàm xóa hình ảnh tùy chỉnh
+    const removeCustomImage = () => {
+        setCustomImage(null);
+        setCustomImagePreview(null);
+        setImageHash(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+        showInfo('Đã xóa hình ảnh tùy chỉnh');
     };
 
     const handleSearchChange = (e) => {
@@ -178,6 +373,14 @@ const CreateReviewPage = () => {
         validateField('game', game);
         validateField('title', game.name || '');
         showSuccess(`Đã chọn game: ${game.name}`);
+        
+        // Log game data to see available platform information
+        console.log('Selected game data:', {
+            game,
+            platforms: game.platforms,
+            parent_platforms: game.parent_platforms,
+            genres: game.genres
+        });
     };
 
     const handleTagKeyDown = (e) => {
@@ -214,13 +417,82 @@ const CreateReviewPage = () => {
         setIsSubmitting(true);
         try {
             const content = editor.getHTML();
+            
+            // Validate all required fields before submission
+            if (isCustomGameMode) {
+                // Validate custom game
+                if (!customGameName.trim()) {
+                    showError('Vui lòng nhập tên game');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (customGameGenres.length === 0) {
+                    showError('Vui lòng chọn ít nhất một thể loại cho game');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (customGamePlatforms.length === 0) {
+                    showError('Vui lòng chọn ít nhất một nền tảng cho game');
+                    setIsSubmitting(false);
+                    return;
+                }
+            } else {
+                validateField('game', selectedGame);
+            }
+            
+            validateField('title', title);
+            validateField('rating', rating);
+            validateField('content', content);
+            validateField('tags', tags);
+            
+            // Check if there are any validation errors
+            if (Object.keys(errors).length > 0) {
+                showError('Vui lòng kiểm tra và sửa các lỗi trong form');
+                setIsSubmitting(false);
+                return;
+            }
+            
+            // Extract platform and genre information from selected game or custom game
+            let gamePlatforms, gameGenres, gameId, gameName;
+            
+            if (isCustomGameMode) {
+                // Use custom game data
+                gamePlatforms = customGamePlatforms.map(p => p.name);
+                gameGenres = customGameGenres.map(g => g.name);
+                gameId = null; // Custom games don't have RAWG ID
+                gameName = customGameName.trim();
+            } else {
+                // Use selected game data
+                gamePlatforms = selectedGame?.platforms?.map(p => p.platform?.name || p.name) || [];
+                gameGenres = selectedGame?.genres?.map(g => g.name) || [];
+                gameId = selectedGame?.id?.toString();
+                gameName = selectedGame?.name;
+            }
+            
             const reviewData = {
                 title: title.trim(),
                 content, tags, rating,
-                gameId: selectedGame?.id?.toString(),
-                gameName: selectedGame?.name,
-                gameImage: selectedGame?.background_image,
+                gameId,
+                gameName,
+                platforms: gamePlatforms,
+                genres: gameGenres,
+                isCustomGame: isCustomGameMode,
             };
+
+            // Thêm dữ liệu hình ảnh (ưu tiên hình ảnh tùy chỉnh)
+            if (customImage && imageHash) {
+                reviewData.imageBase64 = customImage;
+                reviewData.imageHash = imageHash;
+            } else if (selectedGame?.background_image) {
+                reviewData.gameImage = selectedGame.background_image;
+            }
+            
+            console.log('Creating post with platform data:', {
+                platforms: gamePlatforms,
+                genres: gameGenres,
+                selectedGame: selectedGame
+            });
+            
             const response = await createPost(reviewData);
             if (isDraft) {
                 localStorage.removeItem('review-draft');
@@ -308,35 +580,132 @@ const CreateReviewPage = () => {
                     <div className="md:col-span-2 space-y-6">
                         {/* Tìm kiếm Game */}
                         <div className="relative">
-                            <label className="block text-sm font-bold text-gray-700 mb-1">
-                                1. Tìm kiếm game <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                                <FaSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Ví dụ: Cyberpunk 2077..."
-                                    value={searchTerm}
-                                    onChange={handleSearchChange}
-                                    className={`w-full pl-10 p-3 border rounded-lg focus:outline-none focus:ring-2 ${
-                                        errors.game
-                                            ? 'border-red-500 focus:ring-red-500'
-                                            : 'border-gray-300 focus:ring-indigo-500'
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-bold text-gray-700">
+                                    1. {isCustomGameMode ? 'Thêm game mới' : 'Tìm kiếm game'} <span className="text-red-500">*</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={toggleCustomGameMode}
+                                    className={`flex items-center space-x-2 px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                                        isCustomGameMode
+                                            ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
-                                />
+                                >
+                                    {isCustomGameMode ? (
+                                        <>
+                                            <FaSearch className="w-4 h-4" />
+                                            <span>Tìm kiếm game</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaPlus className="w-4 h-4" />
+                                            <span>Thêm game mới</span>
+                                        </>
+                                    )}
+                                </button>
                             </div>
+
+                            {!isCustomGameMode ? (
+                                <>
+                                    <div className="relative">
+                                        <FaSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Ví dụ: Cyberpunk 2077..."
+                                            value={searchTerm}
+                                            onChange={handleSearchChange}
+                                            className={`w-full pl-10 p-3 border rounded-lg focus:outline-none focus:ring-2 ${
+                                                errors.game
+                                                    ? 'border-red-500 focus:ring-red-500'
+                                                    : 'border-gray-300 focus:ring-indigo-500'
+                                            }`}
+                                        />
+                                    </div>
+                                    {searchResults.length > 0 && (
+                                        <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-xl mt-1 max-h-72 overflow-y-auto shadow-2xl">
+                                            {searchResults.map(game => (
+                                                <li key={game.id} onClick={() => handleSelectGame(game)} className="p-3 hover:bg-gray-50 cursor-pointer flex items-center gap-4 transition-colors">
+                                                    <img src={game.background_image} alt={game.name} className="w-16 h-10 object-cover rounded-lg ring-1 ring-gray-200"/>
+                                                    <span className="text-sm font-medium text-gray-800">{game.name}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {/* Custom Game Form */}
+                                    <div className="space-y-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                                        <div className="flex items-center space-x-2 text-indigo-700 mb-3">
+                                            <FaGamepad className="w-5 h-5" />
+                                            <span className="font-medium">Thông tin game mới</span>
+                                        </div>
+
+                                        {/* Game Name Input */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Tên game *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={customGameName}
+                                                onChange={(e) => setCustomGameName(e.target.value)}
+                                                placeholder="Nhập tên game..."
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                                required
+                                            />
+                                        </div>
+
+                                        {/* Genres Selection */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Thể loại ({customGameGenres.length} đã chọn)
+                                            </label>
+                                            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2 bg-white">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {availableGenres.map((genre) => (
+                                                        <label key={genre.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={customGameGenres.some(g => g.id === genre.id)}
+                                                                onChange={() => handleGenreToggle(genre)}
+                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            />
+                                                            <span className="text-sm text-gray-700">{genre.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Platforms Selection */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Nền tảng ({customGamePlatforms.length} đã chọn)
+                                            </label>
+                                            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2 bg-white">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {availablePlatforms.map((platform) => (
+                                                        <label key={platform.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={customGamePlatforms.some(p => p.id === platform.id)}
+                                                                onChange={() => handlePlatformToggle(platform)}
+                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            />
+                                                            <span className="text-sm text-gray-700">{platform.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                             {errors.game && (
                                 <p className="text-red-500 text-sm mt-1">{errors.game}</p>
-                            )}
-                            {searchResults.length > 0 && (
-                                <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-xl mt-1 max-h-72 overflow-y-auto shadow-2xl">
-                                    {searchResults.map(game => (
-                                        <li key={game.id} onClick={() => handleSelectGame(game)} className="p-3 hover:bg-gray-50 cursor-pointer flex items-center gap-4 transition-colors">
-                                            <img src={game.background_image} alt={game.name} className="w-16 h-10 object-cover rounded-lg ring-1 ring-gray-200"/>
-                                            <span className="text-sm font-medium text-gray-800">{game.name}</span>
-                                        </li>
-                                    ))}
-                                </ul>
                             )}
                         </div>
 
@@ -395,14 +764,36 @@ const CreateReviewPage = () => {
                     </div>
 
                     <div className="md:col-span-1 space-y-6">
-                        {/* Game đã chọn */}
-                        {selectedGame && (
+                        {/* Game đã chọn hoặc game tự tạo */}
+                        {(selectedGame || (isCustomGameMode && customGameName)) && (
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Game đã chọn</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    {selectedGame ? 'Game đã chọn' : 'Game mới đã tạo'}
+                                </label>
                                 <div className="bg-gray-50 p-4 rounded-lg text-center border-2 border-green-200">
-                                    <img src={selectedGame.background_image} alt={selectedGame.name} className="w-full h-32 object-cover rounded-lg mx-auto"/>
-                                    <h3 className="font-semibold mt-2">{selectedGame.name}</h3>
-                                    <p className="text-sm text-gray-600 mt-1">Đã chọn ✓</p>
+                                    {selectedGame ? (
+                                        <>
+                                            <img src={selectedGame.background_image} alt={selectedGame.name} className="w-full h-32 object-cover rounded-lg mx-auto"/>
+                                            <h3 className="font-semibold mt-2">{selectedGame.name}</h3>
+                                            <p className="text-sm text-gray-600 mt-1">Đã chọn ✓</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-full h-32 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-lg mx-auto flex items-center justify-center">
+                                                <FaGamepad className="text-white text-4xl" />
+                                            </div>
+                                            <h3 className="font-semibold mt-2">{customGameName}</h3>
+                                            <div className="text-sm text-gray-600 mt-1">
+                                                {customGameGenres.length > 0 && (
+                                                    <p>Thể loại: {customGameGenres.map(g => g.name).join(', ')}</p>
+                                                )}
+                                                {customGamePlatforms.length > 0 && (
+                                                    <p>Nền tảng: {customGamePlatforms.map(p => p.name).join(', ')}</p>
+                                                )}
+                                                <p className="text-green-600 font-medium">Game mới ✓</p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -414,13 +805,62 @@ const CreateReviewPage = () => {
                             </div>
                         )}
 
+                        {/* Upload hình ảnh tùy chỉnh */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                                Hình ảnh tùy chỉnh (Tùy chọn)
+                            </label>
+                            <div className="space-y-3">
+                                {!customImagePreview ? (
+                                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageUpload}
+                                            className="hidden"
+                                        />
+                                        <FaImage className="text-gray-400 text-3xl mb-2 mx-auto" />
+                                        <p className="text-gray-600 text-sm mb-2">Tải lên hình ảnh của riêng bạn</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                                        >
+                                            Chọn hình ảnh
+                                        </button>
+                                        <p className="text-xs text-gray-500 mt-2">PNG, JPG, GIF tối đa 5MB</p>
+                                    </div>
+                                ) : (
+                                    <div className="relative">
+                                        <img
+                                            src={customImagePreview}
+                                            alt="Preview"
+                                            className="w-full h-32 object-cover rounded-lg"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={removeCustomImage}
+                                            className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                                        >
+                                            <FaTimes className="text-xs" />
+                                        </button>
+                                        <div className="mt-2 text-center">
+                                            <p className="text-sm text-green-600 font-medium">✓ Hình ảnh tùy chỉnh</p>
+                                            <p className="text-xs text-gray-500">Sẽ được sử dụng thay vì hình ảnh game</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Đánh giá */}
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">
                                 4. Đánh giá của bạn <span className="text-red-500">*</span>
                             </label>
                             <StarRating />
-                            <p className="text-center text-2xl font-bold mt-2 text-gray-700">{rating}/5</p>
+                            <p className="text-center text-2xl font-bold mt-2 text-gray-700">{rating}</p>
                             {rating > 0 && (
                                 <p className="text-center text-sm text-gray-600 mt-1">
                                     {rating === 1 && 'Rất tệ'}

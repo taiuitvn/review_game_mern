@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaStar, FaUser, FaClock } from 'react-icons/fa';
 import { getAllPosts } from '../../api/reviews';
+import { truncateText } from '../../utils/textUtils';
 
 const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
   const [suggestedReviews, setSuggestedReviews] = useState([]);
@@ -85,7 +86,7 @@ const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
                 </h4>
 
                 <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                  {review.content ? review.content.substring(0, 100) + '...' : review.description || 'Không có mô tả'}
+                  {truncateText(review.content, 100) || review.description || 'Không có mô tả'}
                 </p>
 
                 {/* Meta info */}
@@ -98,12 +99,20 @@ const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
                     <FaClock />
                     <span>{new Date(review.createdAt).toLocaleDateString('vi-VN')}</span>
                   </div>
-                  {review.rating && (
+                  {(review.avgRating !== undefined && review.avgRating > 0) ? (
                     <div className="flex items-center gap-1">
                       <FaStar className="text-yellow-400" />
-                      <span>{review.rating}/5</span>
+                      <span>{review.avgRating}</span>
+                      {review.totalRatings && (
+                        <span className="text-xs text-gray-400">({review.totalRatings})</span>
+                      )}
                     </div>
-                  )}
+                  ) : review.rating ? (
+                    <div className="flex items-center gap-1">
+                      <FaStar className="text-yellow-400" />
+                      <span>{review.rating}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Tags */}
@@ -125,7 +134,10 @@ const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
               {/* Score Badge */}
               <div className="flex-shrink-0">
                 <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {review.rating || 'N/A'}
+                  {review.avgRating !== undefined && review.avgRating > 0 
+                    ? `${Math.round(review.avgRating)}`
+                    : `${review.rating || 0}`
+                  }
                 </div>
               </div>
             </div>

@@ -3,28 +3,36 @@ import {
   createPost,
   getAllPosts,
   getPostById,
-  likePost,
-  savePost,
   updatePostById,
   removePostById,
+  likePost,
   getPostByTitle,
   searchPosts,
+  savePost,
   getTrendingPosts,
   getSavedPosts,
-  debugPosts,
   incrementPostViews,
+  getPostsByGenre,
+  getPostsByPlatform,
+  getAllGenres,
+  getAllPlatforms
 } from "../controllers/post.controller.js";
 import { auth, optionalAuth } from "../middleware/auth.js";
 const post_router = express.Router();
 
 post_router.get("/", getAllPosts);
-// Debug route
-post_router.get("/debug", debugPosts);
 // Specific routes should be registered before dynamic ":id" route
 post_router.get("/trending", getTrendingPosts);
 post_router.get("/search", searchPosts);
 post_router.get("/search/:title", getPostByTitle);
 post_router.get("/me/saved", auth, getSavedPosts);
+
+// Genre and Platform routes
+post_router.get("/genres", getAllGenres);
+post_router.get("/platforms", getAllPlatforms);
+post_router.get("/genre/:genre", getPostsByGenre);
+post_router.get("/platform/:platform", getPostsByPlatform);
+
 post_router.post("/create", auth, createPost);
 post_router.put("/update/:id", auth, updatePostById);
 post_router.delete("/remove/:id", auth, removePostById);
