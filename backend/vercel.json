@@ -8,28 +8,8 @@
   ],
   "routes": [
     {
-      "src": "/api/auth/login",
-      "dest": "/index.js",
-      "methods": ["POST"]
-    },
-    {
-      "src": "/api/auth/register",
-      "dest": "/index.js",
-      "methods": ["POST"]
-    },
-    {
-      "src": "/api/auth/(.*)",
-      "dest": "/index.js",
-      "methods": ["GET", "POST", "PUT", "DELETE"]
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/index.js",
-      "methods": ["GET", "POST", "PUT", "DELETE"]
-    },
-    {
       "src": "/(.*)",
-      "dest": "/index.js"
+      "dest": "index.js"
     }
   ]
 }
