@@ -2,9 +2,10 @@ import axios from 'axios';
 
 // Determine API base URL based on environment
 const getApiBaseUrl = () => {
-  // In production (Vercel), use relative path which will be handled by Vercel routing
+  // In production (Vercel), use the environment variable or relative path
   if (import.meta.env.PROD) {
-    return '/api';
+    // Use the VITE_API_URL if set, otherwise use relative path for Vercel routing
+    return import.meta.env.VITE_API_URL || '/api';
   }
   
   // In development, use the environment variable or default to localhost
