@@ -183,7 +183,8 @@ export const subscribeToNotifications = (userId, callback) => {
 export const getUnreadNotificationCount = async () => {
   try {
     const stats = await getNotificationStats();
-    return stats.data.unreadCount;
+    // The backend returns { success: true, data: stats }, so we need to access stats.data.data
+    return stats.data?.data?.unreadCount || 0;
   } catch (error) {
     console.error('Error getting unread count:', error);
     return 0;
