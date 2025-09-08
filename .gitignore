@@ -48,3 +48,4 @@ fetch_games.js
 EMAIL_SETUP.md
 backend/create_vietnamese_reviews.cjs
 api_response.json
+DEPLOYMENT.md
