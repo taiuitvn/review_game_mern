@@ -11,12 +11,26 @@ test_router.get("/health", (req, res) => {
   });
 });
 
-// Test login endpoint
+// Test login endpoint accessibility
 test_router.post("/test-login", (req, res) => {
   res.json({ 
     status: "OK", 
     message: "Login endpoint is accessible",
     timestamp: new Date().toISOString()
+  });
+});
+
+// Test to verify auth routes are working
+test_router.get("/auth-routes", (req, res) => {
+  res.json({ 
+    status: "OK", 
+    message: "Auth routes are accessible",
+    routes: [
+      "POST /api/auth/login",
+      "POST /api/auth/register",
+      "GET /api/auth/me",
+      "GET /api/auth/users"
+    ]
   });
 });
 
