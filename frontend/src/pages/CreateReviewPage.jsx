@@ -47,10 +47,6 @@ const CreateReviewPage = () => {
     // State cho tính năng nâng cao
     const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
-    const [isDraft, setIsDraft] = useState(false);
-    const [draftId, setDraftId] = useState(null);
-    const [lastSaved, setLastSaved] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
     const [errors, setErrors] = useState({});
     const [wordCount, setWordCount] = useState(0);
 
@@ -60,7 +56,7 @@ const CreateReviewPage = () => {
     const [imageHash, setImageHash] = useState(null);
     const fileInputRef = useRef(null);
 
-    // Cấu hình TipTap editor với auto-save và real-time validation
+    // Cấu hình TipTap editor
     const editor = useEditor({
         extensions: [StarterKit],
         content: '<p>Cảm nghĩ của bạn về game này...</p>',
@@ -71,11 +67,6 @@ const CreateReviewPage = () => {
             
             // Real-time validation for content
             validateField('content', text);
-            
-            // Auto-save draft (with throttling)
-            if (isAuthenticated) {
-                handleAutoSave();
-            }
         }
     });
 
@@ -169,42 +160,6 @@ const CreateReviewPage = () => {
         loadGenresAndPlatforms();
     }, []);
 
-    // Load draft from localStorage on component mount
-    useEffect(() => {
-        const loadDraft = () => {
-            try {
-                const savedDraft = localStorage.getItem('review-draft');
-                if (savedDraft) {
-                    const draftData = JSON.parse(savedDraft);
-                    console.log('Loading draft:', draftData);
-                    
-                    // Restore form data
-                    if (draftData.title) setTitle(draftData.title);
-                    if (draftData.rating) setRating(draftData.rating);
-                    if (draftData.tags) setTags(draftData.tags);
-                    if (draftData.selectedGame) setSelectedGame(draftData.selectedGame);
-                    
-                    // Restore editor content when editor is ready
-                    if (draftData.content && editor) {
-                        editor.commands.setContent(draftData.content);
-                    }
-                    
-                    setIsDraft(true);
-                    setDraftId(draftData.id);
-                    showInfo('Đã khôi phục bản nháp trước đó');
-                }
-            } catch (error) {
-                console.error('Error loading draft:', error);
-                localStorage.removeItem('review-draft'); // Remove corrupted draft
-            }
-        };
-
-        // Only load draft if user is authenticated
-        if (isAuthenticated) {
-            loadDraft();
-        }
-    }, [isAuthenticated, editor, showInfo]);
-
     // Toggle custom game mode
     const toggleCustomGameMode = () => {
         setIsCustomGameMode(!isCustomGameMode);
@@ -255,30 +210,6 @@ const CreateReviewPage = () => {
                 return newPlatforms;
             }
         });
-    };
-
-    // Auto-save functionality
-    const handleAutoSave = async () => {
-        if (isSaving) return;
-        const content = editor?.getHTML();
-        if (!content || content === '<p></p>') return;
-        setIsSaving(true);
-        try {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            setLastSaved(new Date());
-            setIsDraft(true);
-            const draftData = {
-                id: draftId || Date.now().toString(),
-                title, content, rating, tags, selectedGame,
-                timestamp: new Date().toISOString()
-            };
-            localStorage.setItem('review-draft', JSON.stringify(draftData));
-            if (!draftId) setDraftId(draftData.id);
-        } catch (error) {
-            console.error('Auto-save failed:', error);
-        } finally {
-            setIsSaving(false);
-        }
     };
 
     // Hàm tạo hash cho hình ảnh
@@ -494,11 +425,6 @@ const CreateReviewPage = () => {
             });
             
             const response = await createPost(reviewData);
-            if (isDraft) {
-                localStorage.removeItem('review-draft');
-                setIsDraft(false);
-                setDraftId(null);
-            }
             showSuccess('🎉 Bài review đã được đăng thành công!');
             const postId = response?.data?._id || response?._id;
             if (postId) {
