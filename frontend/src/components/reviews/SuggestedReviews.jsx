@@ -1,11 +1,60 @@
-import React from 'react';
-import data from '../../utils/mockData.json';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaStar, FaUser, FaClock } from 'react-icons/fa';
+import { getAllPosts } from '../../api/reviews';
+import { truncateText } from '../../utils/textUtils';
 
 const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
-  // Load từ JSON
-  const suggestedReviews = data.suggestedReviews.filter(review => review._id !== currentReviewId);
+  const [suggestedReviews, setSuggestedReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSuggestedReviews = async () => {
+      try {
+        setLoading(true);
+        const response = await getAllPosts({ limit: 6 });
+        const allPosts = Array.isArray(response.data)
+          ? response.data
+          : (response.data && Array.isArray(response.data.data) ? response.data.data : []);
+        
+        // Filter out current review and get 3 random suggestions
+        const filtered = allPosts.filter(post => post._id !== currentReviewId);
+        const shuffled = filtered.sort(() => 0.5 - Math.random());
+        setSuggestedReviews(shuffled.slice(0, 3));
+      } catch (error) {
+        console.error('Error fetching suggested reviews:', error);
+        setSuggestedReviews([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSuggestedReviews();
+  }, [currentReviewId]);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+          💡 Bài viết liên quan
+        </h3>
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="animate-pulse">
+              <div className="flex gap-4 p-3">
+                <div className="w-16 h-16 bg-gray-200 rounded-lg"></div>
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -14,7 +63,7 @@ const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
       </h3>
 
       <div className="space-y-4">
-        {suggestedReviews.slice(0, 3).map(review => (
+        {suggestedReviews.map(review => (
           <Link
             key={review._id}
             to={`/review/${review._id}`}
@@ -24,8 +73,8 @@ const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
               {/* Game Image */}
               <div className="flex-shrink-0">
                 <img
-                  src={review.gameImage}
-                  alt={review.gameName}
+                  src={review.coverImageUrl || review.gameImage || 'https://via.placeholder.com/64x64?text=Game'}
+                  alt={review.gameName || review.title}
                   className="w-16 h-16 object-cover rounded-lg"
                 />
               </div>
@@ -37,23 +86,33 @@ const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
                 </h4>
 
                 <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                  {review.description}
+                  {truncateText(review.content, 100) || review.description || 'Không có mô tả'}
                 </p>
 
                 {/* Meta info */}
                 <div className="flex items-center gap-3 text-xs text-gray-500">
                   <div className="flex items-center gap-1">
                     <FaUser />
-                    <span>{review.author.name}</span>
+                    <span>{review.author?.name || review.author?.username || 'Anonymous'}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <FaClock />
                     <span>{new Date(review.createdAt).toLocaleDateString('vi-VN')}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <FaStar className="text-yellow-400" />
-                    <span>{review.score}/10</span>
-                  </div>
+                  {(review.avgRating !== undefined && review.avgRating > 0) ? (
+                    <div className="flex items-center gap-1">
+                      <FaStar className="text-yellow-400" />
+                      <span>{review.avgRating}</span>
+                      {review.totalRatings && (
+                        <span className="text-xs text-gray-400">({review.totalRatings})</span>
+                      )}
+                    </div>
+                  ) : review.rating ? (
+                    <div className="flex items-center gap-1">
+                      <FaStar className="text-yellow-400" />
+                      <span>{review.rating}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Tags */}
@@ -75,7 +134,10 @@ const SuggestedReviews = ({ currentReviewId, gameTags, authorId }) => {
               {/* Score Badge */}
               <div className="flex-shrink-0">
                 <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {review.score}
+                  {review.avgRating !== undefined && review.avgRating > 0 
+                    ? `${Math.round(review.avgRating)}`
+                    : `${review.rating || 0}`
+                  }
                 </div>
               </div>
             </div>

@@ -1,56 +1,56 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
-const NotificationContext = createContext(null);
+// Create Notification Context
+const NotificationContext = createContext();
 
+// Notification Provider Component
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
 
-  const addNotification = (notification) => {
-    const newNotification = {
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      isRead: false,
-      ...notification
+  const showNotification = (message, type = 'info', duration = 5000) => {
+    const id = Date.now();
+    const notification = {
+      id,
+      message,
+      type, // 'success', 'error', 'warning', 'info'
+      duration
     };
 
-    setNotifications(prev => [newNotification, ...prev]);
+    setNotifications(prev => [...prev, notification]);
 
-    // Auto remove after 5 seconds for non-persistent notifications
-    if (!notification.persistent) {
+    // Auto remove notification after duration
+    if (duration > 0) {
       setTimeout(() => {
-        removeNotification(newNotification.id);
-      }, 5000);
+        removeNotification(id);
+      }, duration);
     }
+
+    return id;
   };
 
   const removeNotification = (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
   };
 
-  const markAsRead = (id) => {
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  };
-
-  const clearAll = () => {
+  const clearAllNotifications = () => {
     setNotifications([]);
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  // Convenience methods
+  const showSuccess = (message, duration) => showNotification(message, 'success', duration);
+  const showError = (message, duration) => showNotification(message, 'error', duration);
+  const showWarning = (message, duration) => showNotification(message, 'warning', duration);
+  const showInfo = (message, duration) => showNotification(message, 'info', duration);
 
   const value = {
     notifications,
-    unreadCount,
-    addNotification,
+    showNotification,
     removeNotification,
-    markAsRead,
-    markAllAsRead,
-    clearAll
+    clearAllNotifications,
+    showSuccess,
+    showError,
+    showWarning,
+    showInfo
   };
 
   return (
@@ -60,6 +60,13 @@ export const NotificationProvider = ({ children }) => {
   );
 };
 
+// useNotification hook
 export const useNotification = () => {
-  return useContext(NotificationContext);
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error('useNotification must be used within a NotificationProvider');
+  }
+  return context;
 };
+
+export default NotificationContext;

@@ -1,124 +1,211 @@
-import React, { useState, useEffect } from "react";
-import Modal from "../common/Modal";
-import { FaEdit, FaUserPlus, FaClipboardList } from "react-icons/fa";
+import React, { useState } from 'react';
+import { useAuth } from '../../hooks'; // Import useAuth to update user context
+import { FaTimes, FaSave, FaUpload } from 'react-icons/fa';
 
-export default function EditProfileModal({ open, onClose, onSave, initial }) {
-  const [username, setUsername] = useState("");
-  const [bio, setBio] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [saving, setSaving] = useState(false);
+const EditProfileModal = ({ open, onClose, initial, onSave }) => {
+  const { updateProfile } = useAuth(); // Get updateProfile function from context
+  const [formData, setFormData] = useState({
+    username: initial?.username || '',
+    bio: initial?.bio || '',
+    avatarUrl: initial?.avatarUrl || ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(initial?.avatarUrl || '');
+  const [selectedFile, setSelectedFile] = useState(null);
 
-  useEffect(() => {
-    setUsername(initial?.username || "");
-    setBio(initial?.bio || "");
-    setAvatarUrl(initial?.avatarUrl || "");
-  }, [initial, open]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await (onSave?.({ username, bio, avatarUrl }) || Promise.resolve());
-      onClose?.();
-    } finally {
-      setSaving(false);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+    
+    // Update preview when URL changes
+    if (name === 'avatarUrl') {
+      setAvatarPreview(value);
     }
   };
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Chỉnh sửa hồ sơ"
-      footer={
-        <div className="flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-gray-700 dark:text-gray-200
-                       hover:bg-gray-100 dark:hover:bg-white/10
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            Hủy
-          </button>
-          <button
-            type="submit"
-            form="edit-profile-form"
-            disabled={saving}
-            className="px-4 py-2 rounded-lg bg-indigo-600 text-white
-                       hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {saving ? "Đang lưu..." : "Lưu"}
-          </button>
-        </div>
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setFormData({
+        ...formData,
+        avatarUrl: '' // Clear URL when file is selected
+      });
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarPreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      // If file is selected, upload it first
+      let avatarUrl = formData.avatarUrl;
+      if (selectedFile) {
+        // Import the upload function
+        const { uploadImage } = await import('../../api/users');
+        const uploadResult = await uploadImage(selectedFile);
+        avatarUrl = uploadResult.url;
       }
-    >
-      <form id="edit-profile-form" onSubmit={handleSubmit} className="space-y-6">
-        {/* Avatar preview */}
-        <div className="text-center">
-          <div className="relative inline-block">
-            <img
-              src={avatarUrl || "https://i.pravatar.cc/150?u=default"}
-              alt="Avatar preview"
-              className="w-28 h-28 rounded-full object-cover border-4 border-white shadow-xl"
-              onError={(e) => { e.target.src = "https://i.pravatar.cc/150?u=default"; }}
+      
+      // Save profile with the avatar URL (either from file upload or direct input)
+      const updatedData = { ...formData, avatarUrl };
+      const result = await updateProfile(updatedData); // Use updateProfile from context to update user data
+      
+      if (result.success) {
+        await onSave(updatedData); // Also call the onSave prop if needed
+        onClose();
+      } else {
+        console.error('Error updating profile:', result.error);
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 transform transition-all duration-300 scale-100">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Chỉnh sửa hồ sơ</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-full hover:bg-gray-100"
+          >
+            <FaTimes className="text-xl" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Tên người dùng
+            </label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+              placeholder="Nhập tên người dùng"
             />
-            <div className="absolute -bottom-2 -right-2 bg-indigo-600 p-2 rounded-full shadow-lg">
-              <FaEdit className="text-white text-sm" />
-            </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2">Xem trước ảnh đại diện</p>
-        </div>
 
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
-            <span className="bg-blue-500 text-white p-1 rounded-lg"><FaUserPlus className="text-xs" /></span>
-            Tên người dùng
-          </label>
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-white/10
-                       bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100
-                       placeholder:text-gray-400 dark:placeholder:text-gray-500
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="Nhập tên người dùng"
-            required
-          />
-        </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Giới thiệu bản thân
+            </label>
+            <textarea
+              name="bio"
+              value={formData.bio}
+              onChange={handleChange}
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 resize-none"
+              placeholder="Viết vài dòng giới thiệu về bản thân..."
+            />
+          </div>
 
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
-            <span className="bg-emerald-500 text-white p-1 rounded-lg"><FaClipboardList className="text-xs" /></span>
-            Giới thiệu
-          </label>
-          <textarea
-            rows={4}
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-white/10
-                       bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100
-                       placeholder:text-gray-400 dark:placeholder:text-gray-500
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
-            placeholder="Chia sẻ đôi chút về bạn…"
-          />
-        </div>
+          {/* Avatar Preview and Upload */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Ảnh đại diện
+            </label>
+            
+            {/* Avatar Preview */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="relative">
+                {avatarPreview ? (
+                  <img 
+                    src={avatarPreview} 
+                    alt="Preview" 
+                    className="w-16 h-16 rounded-full object-cover border-2 border-gray-300"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-300">
+                    <span className="text-gray-500 text-xs">No image</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex-1">
+                <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors">
+                  <FaUpload />
+                  <span className="text-sm font-medium">Chọn ảnh</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-xs text-gray-500 mt-1">JPG, PNG hoặc GIF (tối đa 5MB)</p>
+              </div>
+            </div>
+            
+            {/* URL Input */}
+            <input
+              type="url"
+              name="avatarUrl"
+              value={formData.avatarUrl}
+              onChange={handleChange}
+              placeholder="Hoặc nhập URL ảnh trực tiếp"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+              disabled={!!selectedFile}
+            />
+            
+            {/* Clear file button */}
+            {selectedFile && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFile(null);
+                  setAvatarPreview(initial?.avatarUrl || '');
+                  setFormData({
+                    ...formData,
+                    avatarUrl: initial?.avatarUrl || ''
+                  });
+                }}
+                className="mt-2 text-sm text-red-500 hover:text-red-700"
+              >
+                Xóa ảnh đã chọn
+              </button>
+            )}
+          </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-gray-700 dark:text-gray-200">URL ảnh đại diện</label>
-          <input
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-white/10
-                       bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100
-                       placeholder:text-gray-400 dark:placeholder:text-gray-500
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="https://example.com/avatar.jpg"
-            type="url"
-          />
-        </div>
-      </form>
-    </Modal>
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-3 text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all duration-200 font-medium shadow-lg"
+            >
+              <FaSave className="text-sm" />
+              <span>{loading ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
-}
+};
+
+export default EditProfileModal;

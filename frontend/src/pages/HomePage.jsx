@@ -1,20 +1,34 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth, usePosts } from '../hooks';
+import { useAuth } from '../hooks';
+import usePaginatedPosts from '../hooks/usePaginatedPosts';
+import { getAllUsers } from '../api/users';
 import LoginPromptModal from '../components/common/LoginPromptModal';
 import ReviewListItem from '../components/reviews/ReviewListItem';
 import StatsCard from '../components/common/StatsCard';
-import { FaArrowRight, FaGamepad } from 'react-icons/fa';
+import Pagination from '../components/common/Pagination';
+import { FaArrowRight, FaGamepad, FaStar, FaClipboardList } from 'react-icons/fa';
+import { getReadingTime, truncateText } from '../utils/textUtils';
 
-
-const genreList = ['All', 'Action', 'RPG', 'Adventure', 'Indie'];
+const genreList = ['All', 'Action', 'RPG', 'Adventure', 'Indie', 'Strategy', 'Simulation', 'Sports', 'Racing', 'Puzzle', 'Platformer', 'Shooter', 'Horror', 'Fighting', 'MMORPG', 'MOBA'];
 
 const HomePage = () => {
   const { user } = useAuth();
-  const { posts: reviews = [], loading } = usePosts();
+  const { 
+    posts: reviewsData = [], 
+    loading, 
+    currentPage, 
+    totalPages, 
+    setPage 
+  } = usePaginatedPosts({ limit: 12 });
   const [activeGenre, setActiveGenre] = useState('All');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
+  const [communityStats, setCommunityStats] = useState(null);
+
+  // Ensure reviews is always an array
+  const reviews = Array.isArray(reviewsData) ? reviewsData : [];
+  console.log('HomePage reviews data:', { reviewsData, reviews, loading });
 
   
   const filteredReviews = useMemo(() => {
@@ -25,10 +39,23 @@ const HomePage = () => {
     return reviews.filter(review => review.tags?.includes(activeGenre));
   }, [reviews, activeGenre]);
 
+  // For filtered reviews, we need to handle pagination differently
+  // If filtering by genre (not 'All'), we show all filtered results without backend pagination
+  // If showing 'All', we use backend pagination
+  const shouldUseBackendPagination = activeGenre === 'All';
+  const displayedReviews = shouldUseBackendPagination ? reviews : filteredReviews;
+  const displayTotalPages = shouldUseBackendPagination ? totalPages : 1; // Show all filtered results on one page
+
   const featuredReview = reviews && reviews.length > 0 ? reviews[0] : null;
   const popularReviews = useMemo(() => {
     if (!reviews || reviews.length === 0) return [];
-    return [...reviews].sort((a, b) => b.likes.length - a.likes.length).slice(0, 4);
+    return [...reviews]
+      .sort((a, b) => {
+        const likesA = Array.isArray(a.likes) ? a.likes.length : (a.likes || 0);
+        const likesB = Array.isArray(b.likes) ? b.likes.length : (b.likes || 0);
+        return likesB - likesA;
+      })
+      .slice(0, 4);
   }, [reviews]);
 
   const handleProtectedAction = (title, message) => {
@@ -36,27 +63,104 @@ const HomePage = () => {
     setShowLoginModal(true);
   };
 
-  if (loading) return (
-    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-          <div className="relative">
-            <FaGamepad className="text-6xl text-indigo-500 animate-pulse" />
-            <div className="absolute -top-2 -right-2 w-4 h-4 bg-purple-500 rounded-full animate-ping"></div>
-          </div>
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Đang tải nội dung...</h2>
-            <p className="text-gray-600">Chúng tôi đang chuẩn bị những bài review tuyệt vời cho bạn</p>
-          </div>
-          <div className="flex space-x-2">
-            <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce"></div>
-            <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-            <div className="w-3 h-3 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+  // Reset currentPage when activeGenre changes
+  const prevActiveGenreRef = React.useRef(activeGenre);
+  React.useEffect(() => {
+    if (prevActiveGenreRef.current !== activeGenre && currentPage > 1) {
+      console.log(`Resetting currentPage from ${currentPage} to 1 because activeGenre changed from ${prevActiveGenreRef.current} to ${activeGenre}`);
+      setPage(1);
+    }
+    prevActiveGenreRef.current = activeGenre;
+  }, [activeGenre, currentPage, setPage]);
+
+  // Reset currentPage if it exceeds displayTotalPages
+  React.useEffect(() => {
+    if (displayTotalPages > 0 && currentPage > displayTotalPages) {
+      console.log(`Resetting currentPage from ${currentPage} to 1 because displayTotalPages is ${displayTotalPages}`);
+      setPage(1);
+    }
+  }, [displayTotalPages, currentPage, setPage]);
+
+  // Compute community stats from API data
+  React.useEffect(() => {
+    let canceled = false;
+    const computeStats = async () => {
+      try {
+        const usersResp = await getAllUsers().catch(() => ({ data: [] }));
+        const usersData = Array.isArray(usersResp?.data) ? usersResp.data : (usersResp?.data?.data || []);
+
+        const totalUsers = Array.isArray(usersData) ? usersData.length : 0;
+        const totalReviews = Array.isArray(reviews) ? reviews.length : 0;
+
+        // Unique games approximation: unique titles
+        const uniqueTitles = new Set((reviews || []).map(r => r.title || ''));
+        const totalGames = Array.from(uniqueTitles).filter(Boolean).length;
+
+        // Average rating if present
+        const ratings = (reviews || []).map(r => {
+          if (r.avgRating !== undefined && r.avgRating > 0) return r.avgRating;
+          if (typeof r.rating === 'number') return r.rating;
+          return null;
+        }).filter(v => v !== null);
+        const avgRating = ratings.length ? Math.round(ratings.reduce((a, b) => a + (b || 0), 0) / ratings.length).toString() : '0';
+
+        // Top games by likes (use titles)
+        const topGames = [...(reviews || [])]
+          .sort((a, b) => (Array.isArray(b.likes) ? b.likes.length : (b.likes || 0)) - (Array.isArray(a.likes) ? a.likes.length : (a.likes || 0)))
+          .slice(0, 3)
+          .map(r => r.title)
+          .filter(Boolean);
+
+        // Trending tags by frequency
+        const tagFreq = new Map();
+        (reviews || []).forEach(r => {
+          (r.tags || []).forEach(t => {
+            const key = String(t).toLowerCase();
+            tagFreq.set(key, (tagFreq.get(key) || 0) + 1);
+          });
+        });
+        const trendingTags = Array.from(tagFreq.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([tag]) => tag);
+
+        if (!canceled) {
+          setCommunityStats({ totalUsers, totalReviews, totalGames, avgRating, topGames, trendingTags });
+        }
+      } catch {
+        if (!canceled) setCommunityStats(null);
+      }
+    };
+    computeStats();
+    return () => { canceled = true; };
+  }, [reviews]);
+
+  if (loading) {
+    console.log('HomePage: Loading state');
+    return (
+      <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+            <div className="relative">
+              <FaGamepad className="text-6xl text-indigo-500 animate-pulse" />
+              <div className="absolute -top-2 -right-2 w-4 h-4 bg-purple-500 rounded-full animate-ping"></div>
+            </div>
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Đang tải nội dung...</h2>
+              <p className="text-gray-600">Chúng tôi đang chuẩn bị những bài review tuyệt vời cho bạn</p>
+            </div>
+            <div className="flex space-x-2">
+              <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce"></div>
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-3 h-3 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  console.log('HomePage: Rendering with', reviews?.length || 0, 'reviews');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
@@ -108,23 +212,23 @@ const HomePage = () => {
           {}
           <div className="lg:col-span-2 space-y-12">
             {}
-            {featuredReview && (
+            {featuredReview ? (
               <section>
                 <div className="flex items-center gap-2 mb-6">
                   <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
                   <h2 className="text-lg font-bold text-gray-900">Nổi bật</h2>
                 </div>
                 <div className="relative group rounded-2xl overflow-hidden text-white shadow-2xl transition-all duration-500 hover:shadow-3xl hover:-translate-y-2">
-                  <img src={featuredReview.coverImageUrl} alt={featuredReview.title} className="w-full h-96 object-cover" />
+                  <img src={featuredReview.coverImageUrl || featuredReview.gameImage || '/placeholder-game.jpg'} alt={featuredReview.title} className="w-full h-96 object-cover" onError={(e) => { e.currentTarget.src = '/placeholder-game.jpg'; }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
                   <div className="absolute bottom-0 left-0 p-8">
                     <div className="absolute top-6 left-6 w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex flex-col items-center justify-center text-white font-bold border-4 border-white shadow-lg transform group-hover:scale-110 transition-transform">
-                      <span className="text-2xl">{featuredReview.rating}</span>
+                      <span className="text-2xl">{featuredReview.avgRating !== undefined && featuredReview.avgRating > 0 ? `${Math.round(featuredReview.avgRating)}` : (typeof featuredReview.rating === 'number' ? `${Math.round(featuredReview.rating)}` : (Array.isArray(featuredReview.likes) ? featuredReview.likes.length : (featuredReview.likes || 0)))}</span>
                       <span className="text-xs tracking-wider">SCORE</span>
                     </div>
                     <div className="mt-16">
                       <div className="flex flex-wrap gap-2 mb-3">
-                        {featuredReview.tags?.map(tag => (
+                        {(featuredReview.tags || []).map(tag => (
                           <span key={tag} className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-medium">
                             {tag}
                           </span>
@@ -136,10 +240,38 @@ const HomePage = () => {
                         </Link>
                       </h2>
                       <p className="text-gray-200 text-lg leading-relaxed max-w-2xl">
-                        {featuredReview.description}
+                        {featuredReview.description || truncateText(featuredReview.content, 140)}
                       </p>
                     </div>
                   </div>
+                </div>
+              </section>
+            ) : (
+              <section>
+                <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
+                  <div className="mb-6">
+                    <FaGamepad className="text-6xl text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-2xl font-bold text-gray-700 mb-2">Chưa có bài review nào</h3>
+                    <p className="text-gray-500">Hãy là người đầu tiên chia sẻ review về game yêu thích!</p>
+                  </div>
+                  {user ? (
+                    <Link
+                      to="/create-review"
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-medium hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg"
+                    >
+                      ✍️ Viết review đầu tiên
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => handleProtectedAction(
+                        'Đăng nhập để viết review',
+                        'Bạn cần đăng nhập để có thể tạo và chia sẻ bài review về game yêu thích của mình.'
+                      )}
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-medium hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg"
+                    >
+                      ✍️ Viết review đầu tiên
+                    </button>
+                  )}
                 </div>
               </section>
             )}
@@ -151,30 +283,42 @@ const HomePage = () => {
                   <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
                   <h2 className="text-2xl font-bold text-gray-900">Bài viết mới nhất</h2>
                 </div>
-                <div className="flex items-center bg-white border border-gray-200 rounded-full p-1 shadow-sm">
-                  {genreList.map(genre => (
-                    <button
-                      key={genre}
-                      onClick={() => setActiveGenre(genre)}
-                      className={`py-2 px-6 text-sm font-semibold transition-all duration-300 rounded-full ${
-                        activeGenre === genre
-                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg transform scale-105'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-indigo-600'
-                      }`}
+                <div className="flex items-center">
+                  <div className="space-y-1 w-64">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <FaGamepad className="text-indigo-500" />
+                      Thể loại
+                    </label>
+                    <select
+                      value={activeGenre}
+                      onChange={(e) => setActiveGenre(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 hover:bg-white transition-all duration-300 text-gray-900 font-medium"
                     >
-                      {genre}
-                    </button>
-                  ))}
+                      {genreList.map(genre => (
+                        <option key={genre} value={genre}>{genre}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-6">
                 {filteredReviews.length > 0 ? (
-                  filteredReviews.map((review) => (
-                    <div key={review._id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
-                      <ReviewListItem review={review} />
-                    </div>
-                  ))
+                  <>
+                    {displayedReviews.map((review) => (
+                      <ReviewListItem key={review._id} review={review} />
+                    ))}
+                    
+                    {/* Pagination */}
+                    {displayTotalPages > 1 && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={displayTotalPages}
+                        onPageChange={setPage}
+                        className="pt-8"
+                      />
+                    )}
+                  </>
                 ) : (
                   <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
                     <div className="text-6xl mb-4">🎮</div>
@@ -197,8 +341,25 @@ const HomePage = () => {
 
           {}
           <aside className="lg:col-span-1 space-y-8">
-            {}
-            <StatsCard />
+            {/* {communityStats && (
+              <div className="space-y-4">
+                <StatsCard 
+                  title="Điểm đánh giá trung bình" 
+                  value={`${communityStats.avgRating}`} 
+                  icon={<FaStar />} 
+                />
+                <StatsCard 
+                  title="Tổng số bài đánh giá" 
+                  value={communityStats.totalReviews} 
+                  icon={<FaClipboardList />} 
+                />
+                <StatsCard 
+                  title="Tổng số game" 
+                  value={communityStats.totalGames} 
+                  icon={<FaGamepad />} 
+                />
+              </div>
+            )} */}
 
             {}
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
@@ -215,7 +376,7 @@ const HomePage = () => {
                     <li key={review._id} className="group">
                       <Link to={`/review/${review._id}`} className="flex items-start gap-4 hover:bg-gray-50 p-3 rounded-xl transition-all duration-300">
                         <div className="relative flex-shrink-0">
-                          <img src={review.gameImage} alt={review.title} className="w-16 h-12 object-cover rounded-lg" />
+                          <img src={review.gameImage || review.coverImageUrl || 'https://via.placeholder.com/160x120?text=No+Image'} alt={review.title} className="w-16 h-12 object-cover rounded-lg" />
                           <div className="absolute -top-2 -left-2 w-6 h-6 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white font-bold text-xs border-2 border-white">
                             {index + 1}
                           </div>
@@ -225,9 +386,13 @@ const HomePage = () => {
                             {review.title}
                           </h4>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-sm text-gray-500">{review.author.name}</span>
+                            <span className="text-sm text-gray-500">{
+                              (review.author && (review.author.name || review.author.username))
+                                || (review.authorId && typeof review.authorId === 'object' && review.authorId.username)
+                                || 'Anonymous'
+                            }</span>
                             <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                              ❤️ {review.likes.length}
+                              ❤️ {Array.isArray(review.likes) ? review.likes.length : (review.likes || 0)}
                             </span>
                           </div>
                         </div>

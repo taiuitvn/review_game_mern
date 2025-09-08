@@ -1,154 +1,326 @@
-import { useState, useEffect } from 'react';
-import { Notification, User } from '../types';
-import mockDB from '../utils/mockDatabase.json';
+import { useState, useEffect, useCallback } from 'react';
+// @ts-ignore - Using JS file with dynamic exports
+import * as notificationAPI from '../api/notifications';
 
-interface UseNotificationsReturn {
-  notifications: Notification[];
-  loading: boolean;
-  error: string | null;
-  getNotificationById: (notificationId: string) => Notification | undefined;
-  createNotification: (notificationData: Omit<Notification, '_id' | 'isRead' | 'createdAt' | 'sender' | 'post' | 'comment'>) => Notification;
-  markAsRead: (notificationId: string) => void;
-  markAllAsRead: (userId: string) => void;
-  deleteNotification: (notificationId: string) => void;
-  getUnreadCount: (userId: string) => number;
-  getUnreadNotifications: (userId: string) => Notification[];
+// Type definitions
+interface Notification {
+  _id: string;
+  userId: string;
+  fromUserId: {
+    _id: string;
+    username: string;
+    avatarUrl?: string;
+  };
+  type: 'like' | 'comment' | 'reply' | 'follow' | 'post_rating' | 'mention';
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  updatedAt: string;
+  postId?: {
+    _id: string;
+    title: string;
+    gameName: string;
+    coverImageUrl?: string;
+  };
+  commentId?: string;
+  data: {
+    postTitle?: string;
+    commentPreview?: string;
+    rating?: number;
+    [key: string]: any;
+  };
 }
 
-export const useNotifications = (userId?: string): UseNotificationsReturn => {
+interface Pagination {
+  page: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  totalCount: number;
+}
+
+interface NotificationStats {
+  totalCount: number;
+  unreadCount: number;
+  readCount: number;
+  typeBreakdown: {
+    [key: string]: number;
+  };
+}
+
+interface GetNotificationsParams {
+  page?: number;
+  limit?: number;
+  unreadOnly?: boolean;
+  type?: string;
+}
+
+// Response interfaces based on actual API responses
+// Using ApiResponse from types/database.ts
+
+interface UseNotificationsReturn {
+  // Data
+  notifications: Notification[];
+  unreadCount: number;
+  pagination: Pagination;
+  stats: NotificationStats;
+  
+  // States
+  loading: boolean;
+  error: string | null;
+  
+  // Actions
+  fetchNotifications: (params?: GetNotificationsParams) => Promise<void>;
+  markAsRead: (notificationId: string) => Promise<boolean>;
+  markAllAsRead: () => Promise<boolean>;
+  deleteNotif: (notificationId: string) => Promise<boolean>;
+  updateUnreadCount: () => Promise<void>;
+  refresh: () => void;
+  
+  // Pagination
+  loadNextPage: () => void;
+  loadPrevPage: () => void;
+  
+  // Filtering
+  filterByType: (type: string) => void;
+  filterUnreadOnly: (unreadOnly?: boolean) => void;
+  
+  // Utilities
+  clearError: () => void;
+}
+
+export const useNotifications = (): UseNotificationsReturn => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+    totalCount: 0
+  });
+  const [stats, setStats] = useState<NotificationStats>({
+    totalCount: 0,
+    unreadCount: 0,
+    readCount: 0,
+    typeBreakdown: {}
+  });
 
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      try {
-        let filteredNotifications = mockDB.notifications;
-        
-        // Filter by userId if provided (get notifications for specific user)
-        if (userId) {
-          filteredNotifications = mockDB.notifications.filter(notif => notif.recipientId === userId);
-        }
-
-        // Populate notifications with sender and post info
-        const notificationsWithDetails: Notification[] = filteredNotifications.map(notif => {
-          const sender = mockDB.users.find(user => user._id === notif.senderId) as User;
-          const post = mockDB.posts.find(post => post._id === notif.postId);
-          const comment = mockDB.comments.find(comment => comment._id === notif.commentId);
-
-          return {
-            ...notif,
-            type: notif.type as 'comment' | 'like' | 'likeComment', // Type assertion for mock data
-            sender: sender ? {
-              id: sender._id,
-              name: sender.username,
-              avatar: sender.avatarUrl
-            } : undefined,
-            post: post ? {
-              id: post._id,
-              title: post.title
-            } : undefined,
-            comment: comment ? {
-              id: comment._id,
-              content: comment.content
-            } : undefined
-          };
+  // Fetch notifications with optional parameters
+  const fetchNotifications = useCallback(async (params: GetNotificationsParams = {}) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // @ts-ignore - API function exists in default export
+      const response = await notificationAPI.getNotifications(params) as any;
+      
+      if (response.success) {
+        setNotifications(response.data.notifications || response.data);
+        setPagination(response.data.pagination || response.pagination || {
+          page: 1,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+          totalCount: response.data.length || 0
         });
-
-        // Sort by createdAt (newest first)
-        notificationsWithDetails.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        setNotifications(notificationsWithDetails);
-        setLoading(false);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load notifications';
-        setError(errorMessage);
-        setLoading(false);
+        setUnreadCount(response.data.unreadCount || response.unreadCount || 0);
       }
-    }, 300);
-  }, [userId]);
+    } catch (err: any) {
+      console.error('Error fetching notifications:', err);
+      setError(err?.message || 'Failed to fetch notifications');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const getNotificationById = (notificationId: string): Notification | undefined => {
-    return notifications.find(notif => notif._id === notificationId);
-  };
+  // Fetch notification statistics
+  const fetchStats = useCallback(async () => {
+    try {
+      // @ts-ignore - API function exists in default export
+      const response = await notificationAPI.getNotificationStats() as any;
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching notification stats:', err);
+    }
+  }, []);
 
-  const createNotification = (notificationData: Omit<Notification, '_id' | 'isRead' | 'createdAt' | 'sender' | 'post' | 'comment'>): Notification => {
-    const newNotification: Notification = {
-      _id: `notif_${Date.now()}`,
-      ...notificationData,
-      isRead: false,
-      createdAt: new Date().toISOString()
+  // Mark a notification as read
+  const markAsRead = useCallback(async (notificationId: string) => {
+    try {
+      // @ts-ignore - API function exists in default export
+      await notificationAPI.markNotificationAsRead(notificationId);
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif._id === notificationId 
+            ? { ...notif, isRead: true }
+            : notif
+        )
+      );
+      
+      // Update unread count
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      return true;
+    } catch (err: any) {
+      console.error('Error marking notification as read:', err);
+      setError(err?.message || 'Failed to mark notification as read');
+      return false;
+    }
+  }, []);
+
+  // Mark all notifications as read
+  const markAllAsRead = useCallback(async () => {
+    try {
+      // @ts-ignore - API function exists in default export
+      await notificationAPI.markAllNotificationsAsRead();
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, isRead: true }))
+      );
+      setUnreadCount(0);
+      
+      return true;
+    } catch (err: any) {
+      console.error('Error marking all notifications as read:', err);
+      setError(err?.message || 'Failed to mark all notifications as read');
+      return false;
+    }
+  }, []);
+
+  // Delete a notification
+  const deleteNotif = useCallback(async (notificationId: string) => {
+    try {
+      // @ts-ignore - API function exists in default export
+      await notificationAPI.deleteNotification(notificationId);
+      
+      // Update local state
+      const deletedNotif = notifications.find(n => n._id === notificationId);
+      setNotifications(prev => 
+        prev.filter(notif => notif._id !== notificationId)
+      );
+      
+      // Update unread count if the deleted notification was unread
+      if (deletedNotif && !deletedNotif.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+      return true;
+    } catch (err: any) {
+      console.error('Error deleting notification:', err);
+      setError(err?.message || 'Failed to delete notification');
+      return false;
+    }
+  }, [notifications]);
+
+  // Get unread count only
+  const updateUnreadCount = useCallback(async () => {
+    try {
+      // @ts-ignore - API function exists in default export
+      const count = await notificationAPI.getUnreadNotificationCount();
+      setUnreadCount(count);
+    } catch (err: any) {
+      console.error('Error getting unread count:', err);
+    }
+  }, []);
+
+  // Load next page
+  const loadNextPage = useCallback(() => {
+    if (pagination.hasNextPage && !loading) {
+      fetchNotifications({ page: pagination.page + 1 });
+    }
+  }, [pagination, loading, fetchNotifications]);
+
+  // Load previous page
+  const loadPrevPage = useCallback(() => {
+    if (pagination.hasPrevPage && !loading) {
+      fetchNotifications({ page: pagination.page - 1 });
+    }
+  }, [pagination, loading, fetchNotifications]);
+
+  // Filter notifications by type
+  const filterByType = useCallback((type: string) => {
+    fetchNotifications({ type, page: 1 });
+  }, [fetchNotifications]);
+
+  // Filter unread only
+  const filterUnreadOnly = useCallback((unreadOnly: boolean = true) => {
+    fetchNotifications({ unreadOnly, page: 1 });
+  }, [fetchNotifications]);
+
+  // Refresh notifications
+  const refresh = useCallback(() => {
+    fetchNotifications({ page: 1 });
+    fetchStats();
+  }, [fetchNotifications, fetchStats]);
+
+  // Initial load
+  useEffect(() => {
+    fetchNotifications();
+    fetchStats();
+  }, [fetchNotifications, fetchStats]);
+
+  // Periodic refresh for unread count (every 30 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      updateUnreadCount();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [updateUnreadCount]);
+
+  // Also update on window focus to ensure fresh data
+  useEffect(() => {
+    const handleFocus = () => {
+      updateUnreadCount();
+      fetchNotifications({ page: 1 });
     };
 
-    // Add sender and post details
-    const sender = mockDB.users.find(user => user._id === notificationData.senderId) as User;
-    const post = mockDB.posts.find(post => post._id === notificationData.postId);
-    const comment = mockDB.comments.find(comment => comment._id === notificationData.commentId);
-
-    const notificationWithDetails: Notification = {
-      ...newNotification,
-      sender: sender ? {
-        id: sender._id,
-        name: sender.username,
-        avatar: sender.avatarUrl
-      } : undefined,
-      post: post ? {
-        id: post._id,
-        title: post.title
-      } : undefined,
-      comment: comment ? {
-        id: comment._id,
-        content: comment.content
-      } : undefined
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
     };
-
-    setNotifications(prev => [notificationWithDetails, ...prev]);
-    return notificationWithDetails;
-  };
-
-  const markAsRead = (notificationId: string): void => {
-    setNotifications(prev => prev.map(notif => 
-      notif._id === notificationId 
-        ? { ...notif, isRead: true }
-        : notif
-    ));
-  };
-
-  const markAllAsRead = (userId: string): void => {
-    setNotifications(prev => prev.map(notif => 
-      notif.recipientId === userId 
-        ? { ...notif, isRead: true }
-        : notif
-    ));
-  };
-
-  const deleteNotification = (notificationId: string): void => {
-    setNotifications(prev => prev.filter(notif => notif._id !== notificationId));
-  };
-
-  const getUnreadCount = (userId: string): number => {
-    return notifications.filter(notif => 
-      notif.recipientId === userId && !notif.isRead
-    ).length;
-  };
-
-  const getUnreadNotifications = (userId: string): Notification[] => {
-    return notifications.filter(notif => 
-      notif.recipientId === userId && !notif.isRead
-    );
-  };
+  }, [updateUnreadCount, fetchNotifications]);
 
   return {
+    // Data
     notifications,
+    unreadCount,
+    pagination,
+    stats,
+    
+    // States
     loading,
     error,
-    getNotificationById,
-    createNotification,
+    
+    // Actions
+    fetchNotifications,
     markAsRead,
     markAllAsRead,
-    deleteNotification,
-    getUnreadCount,
-    getUnreadNotifications
+    deleteNotif,
+    updateUnreadCount,
+    refresh,
+    
+    // Pagination
+    loadNextPage,
+    loadPrevPage,
+    
+    // Filtering
+    filterByType,
+    filterUnreadOnly,
+    
+    // Utilities
+    clearError: () => setError(null)
   };
 };
+
+export default useNotifications;

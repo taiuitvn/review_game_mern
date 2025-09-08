@@ -1,0 +1,10 @@
+export function getUserById(userId: string): Promise<any>;
+export function getUserPosts(userId: string): Promise<any[]>;
+export function getUserStats(userId: string): Promise<any>;
+export function getMyProfile(): Promise<any>;
+export function getMyStats(): Promise<any>;
+export function updateUser(userId: string, userData: any): Promise<any>;
+export function getAllUsers(): Promise<any[]>;
+export function followUser(userId: string): Promise<any>;
+export function unfollowUser(userId: string): Promise<any>;
+export function searchUsers(query: string, page?: number, limit?: number): Promise<any>;

@@ -9,11 +9,19 @@ export default defineConfig({
     
   ],
   
-  proxy: {
-    '/api': {
-      target: 'http://localhost:5000', // URL của server backend Express.js
-      changeOrigin: true,
-      secure: false,
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000', // URL của server backend Express.js
+        changeOrigin: true,
+        secure: false,
+      },
+      '/rawg-api': {
+        target: 'https://api.rawg.io/api',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/rawg-api/, ''),
+      },
     },
   },
 })

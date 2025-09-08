@@ -3,27 +3,43 @@ import {
   createPost,
   getAllPosts,
   getPostById,
-  likePost,
-  savePost,
   updatePostById,
   removePostById,
+  likePost,
   getPostByTitle,
+  searchPosts,
+  savePost,
   getTrendingPosts,
   getSavedPosts,
+  incrementPostViews,
+  getPostsByGenre,
+  getPostsByPlatform,
+  getAllGenres,
+  getAllPlatforms
 } from "../controllers/post.controller.js";
-import { auth } from "../middleware/auth.js";
+import { auth, optionalAuth } from "../middleware/auth.js";
 const post_router = express.Router();
 
 post_router.get("/", getAllPosts);
-post_router.get("/:id", getPostById);
-post_router.post("/update/:id", updatePostById);
-post_router.post("/remove/:id", removePostById);
-post_router.post("/create", createPost);
+// Specific routes should be registered before dynamic ":id" route
+post_router.get("/trending", getTrendingPosts);
+post_router.get("/search", searchPosts);
+post_router.get("/search/:title", getPostByTitle);
+post_router.get("/me/saved", auth, getSavedPosts);
+
+// Genre and Platform routes
+post_router.get("/genres", getAllGenres);
+post_router.get("/platforms", getAllPlatforms);
+post_router.get("/genre/:genre", getPostsByGenre);
+post_router.get("/platform/:platform", getPostsByPlatform);
+
+post_router.post("/create", auth, createPost);
+post_router.put("/update/:id", auth, updatePostById);
+post_router.delete("/remove/:id", auth, removePostById);
 post_router.put("/:id/like", auth, likePost);
 post_router.post("/:id/save", auth, savePost);
-post_router.get("/search/:title", getPostByTitle);
-post_router.get("/trending", getTrendingPosts);
-post_router.get("/me/saved", auth, getSavedPosts);
+post_router.post("/:id/view", incrementPostViews);
+post_router.get("/:id", optionalAuth, getPostById);
 export default post_router;
 
 /**
@@ -170,9 +186,57 @@ export default post_router;
 
 /**
  * @swagger
+ * /posts/search:
+ *   get:
+ *     summary: Tìm kiếm bài viết nâng cao
+ *     tags: [Posts]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Từ khóa tìm kiếm
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [relevance, newest, oldest, rating, views, likes]
+ *         description: Sắp xếp kết quả
+ *       - in: query
+ *         name: rating
+ *         schema:
+ *           type: string
+ *           enum: [all, 5, 4+, 3+]
+ *         description: Lọc theo đánh giá
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: Lọc theo tags (phân cách bằng dấu phẩy)
+ *       - in: query
+ *         name: author
+ *         schema:
+ *           type: string
+ *         description: Lọc theo tác giả
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Số trang
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số kết quả mỗi trang
+ *     responses:
+ *       200:
+ *         description: Kết quả tìm kiếm với thông tin phân trang
+ *
+ * @swagger
  * /posts/search/{title}:
  *   get:
- *     summary: Tìm bài viết theo tiêu đề
+ *     summary: Tìm bài viết theo tiêu đề (phương pháp cũ)
  *     tags: [Posts]
  *     parameters:
  *       - in: path

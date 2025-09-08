@@ -1,32 +1,85 @@
-// Export all types
-export * from './database';
-
-// Additional utility types
-export type ID = string;
-
-export interface PaginationParams {
-  page?: number;
-  limit?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
+// User Types
+export interface User {
+  _id: string;
+  id?: string;
+  username: string;
+  email: string;
+  avatarUrl?: string;
+  bio?: string;
+  savedPosts?: string[];
+  followers?: string[];
+  following?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export interface SearchParams extends PaginationParams {
-  query?: string;
-  tags?: string[];
-  genre?: string;
-  minRating?: number;
-  maxRating?: number;
+export type DbUser = User;
+
+// Auth Types
+export interface LoginCredentials {
+  email: string;
+  password: string;
 }
 
-// Component prop types
-export interface BaseComponentProps {
-  className?: string;
-  children?: React.ReactNode;
+export interface RegisterData {
+  username: string;
+  email: string;
+  password: string;
+  bio?: string;
+  avatarUrl?: string;
 }
 
-// Modal types
-export interface ModalContent {
+export interface AuthResult {
+  success: boolean;
+  user?: DbUser;
+  error?: string;
+}
+
+// Post/Review Types
+export interface Post {
+  _id: string;
   title: string;
-  message: string;
+  content: string;
+  coverImageUrl?: string;
+  tags?: string[];
+  views: number;
+  authorId: string | User;
+  likes: string[];
+  savedBy: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type Review = Post;
+
+// Comment Types
+export interface Comment {
+  _id: string;
+  postId: string;
+  authorId: string | User;
+  content: string;
+  likes: string[];
+  dislikes: string[];
+  createdAt: string;
+}
+
+// Rating Types
+export interface Rating {
+  _id: string;
+  postId: string;
+  userId: string;
+  rating: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Notification Types
+export interface Notification {
+  _id: string;
+  userId: string;
+  type: string;
+  postId?: string;
+  commentId?: string;
+  isRead: boolean;
+  createdAt: string;
 }

@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks';
+import { useNotifications } from '../../hooks/useNotifications';
 import LoginPromptModal from '../common/LoginPromptModal';
 
 import {
   FaGamepad, FaHome, FaFire, FaPlus, FaUserCircle, FaSignOutAlt,
   FaSearch, FaChevronDown, FaDesktop, FaPlaystation, FaXbox, FaBars, FaTimes,
-  FaSignInAlt, FaUserPlus
+  FaSignInAlt, FaUserPlus, FaBell
 } from 'react-icons/fa';
 
 const Header = () => {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, updateProfile } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
 
   // State management
@@ -20,6 +22,20 @@ const Header = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
+
+  // Refresh user data when window gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      // This will trigger a re-render with updated user data
+      // The useAuth hook already handles localStorage updates
+    };
+
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -126,6 +142,42 @@ const Header = () => {
                     <span className="w-2 h-2 bg-green-400 rounded-full"></span>
                     Adventure
                   </Link>
+                  <Link to="/genres/fps" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
+                    FPS
+                  </Link>
+                  <Link to="/genres/strategy" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+                    Strategy
+                  </Link>
+                  <Link to="/genres/sports" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+                    Sports
+                  </Link>
+                  <Link to="/genres/racing" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-pink-400 rounded-full"></span>
+                    Racing
+                  </Link>
+                  <Link to="/genres/simulation" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
+                    Simulation
+                  </Link>
+                  <Link to="/genres/horror" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-gray-600 rounded-full"></span>
+                    Horror
+                  </Link>
+                  <Link to="/genres/puzzle" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
+                    Puzzle
+                  </Link>
+                  <Link to="/genres/fighting" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                    Fighting
+                  </Link>
+                  <Link to="/genres/mmorpg" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-600 transition-all duration-200 transform hover:translate-x-1">
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                    MMORPG
+                  </Link>
                 </div>
               </div>
 
@@ -157,6 +209,24 @@ const Header = () => {
                   <Link to="/platforms/xbox" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 transition-all duration-200 transform hover:translate-x-1">
                     <FaXbox className="w-4 h-4 text-green-500" /> Xbox
                   </Link>
+                  <Link to="/platforms/nintendo-switch" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 transition-all duration-200 transform hover:translate-x-1">
+                    <FaGamepad className="w-4 h-4 text-red-500" /> Nintendo Switch
+                  </Link>
+                  <Link to="/platforms/mobile" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 transition-all duration-200 transform hover:translate-x-1">
+                    <FaGamepad className="w-4 h-4 text-pink-500" /> Mobile
+                  </Link>
+                  <Link to="/platforms/steam" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 transition-all duration-200 transform hover:translate-x-1">
+                    <FaDesktop className="w-4 h-4 text-gray-600" /> Steam
+                  </Link>
+                  <Link to="/platforms/epic-games" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 transition-all duration-200 transform hover:translate-x-1">
+                    <FaGamepad className="w-4 h-4 text-yellow-500" /> Epic Games
+                  </Link>
+                  <Link to="/platforms/vr" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 transition-all duration-200 transform hover:translate-x-1">
+                    <FaGamepad className="w-4 h-4 text-purple-500" /> VR
+                  </Link>
+                  <Link to="/platforms/retro" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 transition-all duration-200 transform hover:translate-x-1">
+                    <FaGamepad className="w-4 h-4 text-orange-500" /> Retro
+                  </Link>
                 </div>
               </div>
             </nav>
@@ -169,6 +239,19 @@ const Header = () => {
                 <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"></div>
               ) : user ? (
                 <>
+                  {/* Notifications Button */}
+                  <Link 
+                    to="/notifications"
+                    className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <FaBell className="w-5 h-5 text-gray-600" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </Link>
+
                   {/* Create Review Button */}
                   <NavLink 
                     to="/create-review" 
@@ -181,17 +264,24 @@ const Header = () => {
                   {/* User Menu */}
                   <div className="relative group">
                     <Link
-                      to={`/profile/${user.id}`}
+                      to={`/profile/${user._id || user.id}`}
                       className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                     >
-                      <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
-                      <span className="hidden md:inline font-medium text-gray-700">{user.name}</span>
+                      <img 
+                        src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user._id || user.id}`} 
+                        alt={user.username} 
+                        className="w-8 h-8 rounded-full object-cover" 
+                        onError={(e) => {
+                          e.target.src = `https://i.pravatar.cc/150?u=${user._id || user.id}`;
+                        }}
+                      />
+                      <span className="hidden md:inline font-medium text-gray-700">{user.username}</span>
                     </Link>
                     
                     {/* User Dropdown */}
                     <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                       <Link 
-                        to={`/profile/${user.id}`}
+                        to={`/profile/${user._id || user.id}`}
                         className="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                       >
                         <FaUserCircle className="w-4 h-4" />
@@ -267,10 +357,26 @@ const Header = () => {
                   <FaFire className="w-5 h-5" />
                   Thịnh hành
                 </NavLink>
-                <NavLink to="/search" className={mobileNavLinkClasses} onClick={() => setMobileMenuOpen(false)}>
+                {/* <NavLink to="/search" className={mobileNavLinkClasses} onClick={() => setMobileMenuOpen(false)}>
                   <FaSearch className="w-5 h-5" />
                   Tìm kiếm
-                </NavLink>
+                </NavLink> */}
+                
+                {user && (
+                  <NavLink to="/notifications" className={mobileNavLinkClasses} onClick={() => setMobileMenuOpen(false)}>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-3">
+                        <FaBell className="w-5 h-5" />
+                        Thông báo
+                      </div>
+                      {unreadCount > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </NavLink>
+                )}
                 
                 {user ? (
                   <NavLink to="/create-review" className={mobileNavLinkClasses} onClick={() => setMobileMenuOpen(false)}>
@@ -291,6 +397,62 @@ const Header = () => {
                     <FaPlus className="w-5 h-5" />
                     Viết Review
                   </button>
+                )}
+                
+                {/* User Profile Section - Mobile */}
+                {user && (
+                  <div className="border-t border-gray-200 pt-4">
+                    <Link 
+                      to={`/profile/${user._id || user.id}`}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <img 
+                        src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user._id || user.id}`} 
+                        alt={user.username} 
+                        className="w-8 h-8 rounded-full object-cover" 
+                        onError={(e) => {
+                          e.target.src = `https://i.pravatar.cc/150?u=${user._id || user.id}`;
+                        }}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{user.username}</div>
+                        <div className="text-sm text-gray-500">Xem hồ sơ</div>
+                      </div>
+                    </Link>
+                    
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Bạn có chắc muốn đăng xuất?')) {
+                          logout();
+                          setMobileMenuOpen(false);
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <FaSignOutAlt className="w-5 h-5" />
+                      Đăng xuất
+                    </button>
+                  </div>
+                )}
+                
+                {!user && (
+                  <div className="border-t border-gray-200 pt-4 space-y-2">
+                    <Link
+                      to="/login"
+                      className="block w-full text-center px-4 py-3 bg-gray-100 text-indigo-600 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Đăng nhập
+                    </Link>
+                    <Link
+                      to="/register"
+                      className="block w-full text-center px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Đăng ký
+                    </Link>
+                  </div>
                 )}
 
                 {/* Mobile Genres */}

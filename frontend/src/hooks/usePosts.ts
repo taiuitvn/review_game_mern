@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Post, User } from '../types';
-import mockDB from '../utils/mockDatabase.json';
+import { Post } from '../types';
+import { getAllPosts, getPostById as apiGetPostById, createPost as apiCreatePost, updatePost as apiUpdatePost, deletePost as apiDeletePost, likePost as apiLikePost } from '../api/reviews';
 
 interface UsePostsReturn {
   posts: Post[];
@@ -8,12 +8,12 @@ interface UsePostsReturn {
   error: string | null;
   getPostById: (postId: string) => Post | undefined;
   getPostsByAuthor: (authorId: string) => Post[];
-  getSavedPosts: (userId: string) => Post[];
+  getSavedPosts: () => Post[];
   getTrendingPosts: () => Post[];
-  createPost: (postData: Omit<Post, '_id' | 'views' | 'likes' | 'savedBy' | 'createdAt' | 'updatedAt' | 'author'>) => Post;
-  updatePost: (postId: string, updateData: Partial<Post>) => void;
-  deletePost: (postId: string) => void;
-  likePost: (postId: string, userId: string) => void;
+  createPost: (postData: Partial<Post>) => Promise<Post>;
+  updatePost: (postId: string, updateData: Partial<Post>) => Promise<void>;
+  deletePost: (postId: string) => Promise<void>;
+  likePost: (postId: string, userId: string) => Promise<void>;
   unlikePost: (postId: string, userId: string) => void;
   isPostLiked: (postId: string, userId: string) => boolean;
   incrementViews: (postId: string) => void;
@@ -25,30 +25,40 @@ export const usePosts = (): UsePostsReturn => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
+    const fetchPosts = async () => {
       try {
-        // Populate posts with author info
-        const postsWithAuthors = mockDB.posts.map(post => {
-          const author = mockDB.users.find(user => user._id === post.authorId) as User;
-          return {
-            ...post,
-            author: {
-              id: author._id,
-              name: author.username,
-              avatar: author.avatarUrl,
-              bio: author.bio
-            }
-          };
-        });
-        setPosts(postsWithAuthors);
-        setLoading(false);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load posts';
+        setLoading(true);
+        console.log('Fetching posts...');
+        const response: any = await getAllPosts();
+        console.log('Posts response:', response);
+        
+        // Handle different response formats from backend
+        let postsData: Post[] = [];
+        
+        if (Array.isArray(response)) {
+          postsData = response;
+        } else if (Array.isArray(response?.data)) {
+          postsData = response.data;
+        } else if (Array.isArray(response?.data?.posts)) {
+          postsData = response.data.posts;
+        } else if (response?.posts && Array.isArray(response.posts)) {
+          postsData = response.posts;
+        }
+        
+        console.log('Processed posts data:', postsData);
+        setPosts(postsData);
+        setError(null);
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to load posts';
+        console.error('Error fetching posts:', err);
         setError(errorMessage);
+        setPosts([]);
+      } finally {
         setLoading(false);
       }
-    }, 500);
+    };
+
+    fetchPosts();
   }, []);
 
   const getPostById = (postId: string): Post | undefined => {
@@ -56,13 +66,16 @@ export const usePosts = (): UsePostsReturn => {
   };
 
   const getPostsByAuthor = (authorId: string): Post[] => {
-    return posts.filter(post => post.authorId === authorId);
+    return posts.filter(post => {
+      const aid = (post.authorId && typeof post.authorId === 'object') ? (post.authorId as any)._id : post.authorId;
+      return aid === authorId;
+    });
   };
 
-  const getSavedPosts = (userId: string): Post[] => {
-    const user = mockDB.users.find(u => u._id === userId) as User;
-    if (!user) return [];
-    return posts.filter(post => user.savedPosts.includes(post._id));
+  const getSavedPosts = (): Post[] => {
+    // This will be handled by the API in the future
+    // For now, return empty array as this should be called from useAuth
+    return [];
   };
 
   const getTrendingPosts = (): Post[] => {
@@ -74,56 +87,57 @@ export const usePosts = (): UsePostsReturn => {
     });
   };
 
-  const createPost = (postData: Omit<Post, '_id' | 'views' | 'likes' | 'savedBy' | 'createdAt' | 'updatedAt' | 'author'>): Post => {
-    const newPost: Post = {
-      _id: `post_${Date.now()}`,
-      ...postData,
-      views: 0,
-      likes: [],
-      savedBy: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      author: {
-        id: '',
-        name: '',
-        avatar: '',
-        bio: ''
-      }
-    };
-    
-    const author = mockDB.users.find(user => user._id === postData.authorId) as User;
-    const postWithAuthor: Post = {
-      ...newPost,
-      author: {
-        id: author._id,
-        name: author.username,
-        avatar: author.avatarUrl,
-        bio: author.bio
-      }
-    };
-    
-    setPosts(prev => [postWithAuthor, ...prev]);
-    return postWithAuthor;
+  const createPost = async (postData: Partial<Post>): Promise<Post> => {
+    try {
+      const response: any = await apiCreatePost(postData as any);
+      const newPost: Post = response.data;
+      setPosts((prev: Post[]) => [newPost, ...prev]);
+      return newPost;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to create post';
+      setError(errorMessage);
+      throw error;
+    }
   };
 
-  const updatePost = (postId: string, updateData: Partial<Post>): void => {
-    setPosts(prev => prev.map(post => 
-      post._id === postId 
-        ? { ...post, ...updateData, updatedAt: new Date().toISOString() }
-        : post
-    ));
+  const updatePost = async (postId: string, updateData: Partial<Post>): Promise<void> => {
+    try {
+      const response: any = await apiUpdatePost(postId, updateData);
+      const updatedPost: Post = response.data;
+      setPosts((prev: Post[]) => prev.map(post => 
+        post._id === postId ? updatedPost : post
+      ));
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update post';
+      setError(errorMessage);
+      throw error;
+    }
   };
 
-  const deletePost = (postId: string): void => {
-    setPosts(prev => prev.filter(post => post._id !== postId));
+  const deletePost = async (postId: string): Promise<void> => {
+    try {
+      await apiDeletePost(postId);
+      setPosts(prev => prev.filter(post => post._id !== postId));
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete post';
+      setError(errorMessage);
+      throw error;
+    }
   };
 
-  const likePost = (postId: string, userId: string): void => {
-    const post = getPostById(postId);
-    if (post && !post.likes.includes(userId)) {
-      updatePost(postId, {
-        likes: [...post.likes, userId]
-      });
+  const likePost = async (postId: string): Promise<void> => {
+    try {
+      await apiLikePost(postId);
+      // Refresh the post data after liking
+      const response: any = await apiGetPostById(postId);
+      const updatedPost: Post = response.data;
+      setPosts((prev: Post[]) => prev.map(post => 
+        post._id === postId ? updatedPost : post
+      ));
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to like post';
+      setError(errorMessage);
+      throw error;
     }
   };
 

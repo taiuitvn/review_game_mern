@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks';
 import { FaGamepad, FaEye, FaEyeSlash, FaSpinner, FaCheckCircle } from 'react-icons/fa';
 
 const RegisterPage = () => {
@@ -73,15 +73,15 @@ const RegisterPage = () => {
     setErrors({});
 
     try {
-      // Giả lập API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Đăng ký tài khoản
-      register(formData);
-      // Navigate manually to ensure redirect works
-      setTimeout(() => navigate('/'), 100);
-    } catch (err) {
-      setErrors({ general: 'Đăng ký thất bại. Vui lòng thử lại.' });
+      const result = await register(formData);
+      if (result?.success) {
+        // Navigate to home page after successful registration
+        navigate('/');
+      } else {
+        setErrors({ general: result?.error || 'Đăng ký thất bại. Vui lòng thử lại.' });
+      }
+    } catch (error) {
+      setErrors({ general: error?.message || 'Đăng ký thất bại. Vui lòng thử lại.' });
     } finally {
       setIsLoading(false);
     }

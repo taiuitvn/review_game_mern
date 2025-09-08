@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks';
 import { useModal } from '../../contexts/ModalContext';
 import Button from '../common/Button';
 import Input from '../common/Input';

@@ -8,18 +8,38 @@ import {
   updateUser,
   getPostsByUserId,
   getMyPosts,
+  getMyProfile,
+  getUserStats,
+  followUser,
+  unfollowUser,
+  getFollowers,
+  forgotPassword,
+  resetPassword,
+  validateResetToken,
+  searchUsers,
 } from "../controllers/auth.controller.js";
 import { auth } from "../middleware/auth.js";
 const auth_router = express.Router();
 
 auth_router.get("/users", getAllUsers);
+auth_router.get("/search", searchUsers);
+auth_router.get("/me", auth, getMyProfile);
+auth_router.get("/me/stats", auth, getUserStats);
 auth_router.get("/user/:id", getUserById);
 auth_router.get("/user/:id/posts", getPostsByUserId);
+auth_router.get("/user/:id/stats", getUserStats);
+auth_router.get("/user/:id/followers", getFollowers);
+auth_router.post("/user/:id/follow", auth, followUser);
+auth_router.post("/user/:id/unfollow", auth, unfollowUser);
 auth_router.post("/register", register);
 auth_router.post("/login", login);
 auth_router.post("/remove/:id", removeById);
 auth_router.put("/update/:id", auth, updateUser);
-auth_router.put("/post/me", auth, getMyPosts);
+auth_router.get("/posts/me", auth, getMyPosts);
+// Password reset routes
+auth_router.post("/forgot-password", forgotPassword);
+auth_router.post("/reset-password/:token", resetPassword);
+auth_router.get("/validate-reset-token/:token", validateResetToken);
 
 export default auth_router;
 // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OTIyZGQ3ZDAwNWY4ODRkMGVjNGU5YSIsImlhdCI6MTc1NDQxMzM2OSwiZXhwIjoxNzU1MDE4MTY5fQ.x-PlVub0x8Ojx5OExRo2ExFumTwniw7zPlRfHcxD4Qs

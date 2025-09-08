@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks';
 import { FaGamepad, FaEye, FaEyeSlash, FaSpinner, FaCheckCircle } from 'react-icons/fa';
 
 const LoginPage = () => {
@@ -29,19 +29,15 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // Giả lập API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Kiểm tra thông tin đăng nhập cơ bản
-      if (formData.email && formData.password) {
-        login(formData);
-        // Navigate manually to ensure redirect works
-        setTimeout(() => navigate('/'), 100);
+      const result = await login(formData);
+      if (result?.success) {
+        // Navigate to home page after successful login
+        navigate('/');
       } else {
-        throw new Error('Vui lòng điền đầy đủ thông tin');
+        setError(result?.error || 'Đăng nhập thất bại. Vui lòng thử lại.');
       }
     } catch (err) {
-      setError(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+      setError(err?.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -140,12 +136,12 @@ const LoginPage = () => {
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
                 Mật khẩu
               </label>
-              <button
-                type="button"
-                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+              <Link
+                to="/forgot-password"
+                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium transition-colors duration-200 hover:underline"
               >
                 Quên mật khẩu?
-              </button>
+              </Link>
             </div>
             <div className="relative">
               <input
@@ -217,14 +213,6 @@ const LoginPage = () => {
           </p>
         </div>
 
-        {/* Demo Account Info */}
-        <div className="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
-          <p className="text-sm text-indigo-800 mb-2 font-medium">💡 Tài khoản demo:</p>
-          <div className="text-xs text-indigo-700 space-y-1">
-            <p><strong>Email:</strong> demo@gamehub.com</p>
-            <p><strong>Password:</strong> demo123</p>
-          </div>
-        </div>
       </div>
 
     </div>

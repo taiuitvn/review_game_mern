@@ -1,28 +1,61 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchReviews } from '../../api/reviews';
+import { getAllPosts } from '../../api/reviews';
 import AnimatedCard from '../../components/common/AnimatedCard';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton';
+import Pagination from '../../components/common/Pagination';
 import { FaGamepad, FaFilter, FaSortAmountDown, FaSearch, FaFire } from 'react-icons/fa';
 
 const GenrePage = () => {
-  const { slug } = useParams();
+  const { genre } = useParams();
   const [items, setItems] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [sortBy, setSortBy] = useState('newest');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   React.useEffect(() => {
     setLoading(true);
-    fetchReviews().then(({ data }) => {
-      setItems(data);
-      setLoading(false);
-    });
-  }, [slug]);
+    console.log('Fetching all posts for frontend filtering');
+    getAllPosts()
+      .then((resp) => {
+        console.log('All posts response:', resp);
+        
+        // Handle different response formats
+        let data = [];
+        if (Array.isArray(resp)) {
+          data = resp;
+        } else if (Array.isArray(resp?.data)) {
+          data = resp.data;
+        } else if (resp?.data?.posts && Array.isArray(resp.data.posts)) {
+          data = resp.data.posts;
+        } else if (resp?.posts && Array.isArray(resp.posts)) {
+          data = resp.posts;
+        }
+        
+        console.log('All posts data:', data);
+        setItems(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        console.error('Error fetching all posts:', error);
+        setItems([]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-  const normalized = slug?.toLowerCase();
   const filtered = useMemo(() => {
-    let result = items.filter(r => (r.genres || []).some(g => g.toLowerCase() === normalized));
+    const safeItems = Array.isArray(items) ? items : [];
+    let result = safeItems;
+    
+    // Filter by genre first
+    if (genre) {
+      const targetGenre = genre.charAt(0).toUpperCase() + genre.slice(1).toLowerCase();
+      result = result.filter(item => 
+        item.genres && Array.isArray(item.genres) && 
+        item.genres.some(g => g.toLowerCase() === targetGenre.toLowerCase())
+      );
+    }
     
     // Apply search filter
     if (searchTerm.trim()) {
@@ -41,7 +74,7 @@ const GenrePage = () => {
         result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         break;
       case 'rating':
-        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        result.sort((a, b) => (b.avgRating !== undefined ? b.avgRating : (b.rating || 0)) - (a.avgRating !== undefined ? a.avgRating : (a.rating || 0)));
         break;
       case 'views':
         result.sort((a, b) => (b.views || 0) - (a.views || 0));
@@ -54,7 +87,27 @@ const GenrePage = () => {
     }
     
     return result;
-  }, [items, normalized, searchTerm, sortBy]);
+  }, [items, searchTerm, sortBy, genre]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedReviews = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return filtered.slice(startIndex, endIndex);
+  }, [filtered, currentPage]);
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortBy, genre]);
+
+  // Reset to first page if current page exceeds total pages
+  React.useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
 
   if (loading) {
     return (
@@ -91,10 +144,10 @@ const GenrePage = () => {
             </div>
             <div>
               <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white">
-                Thể loại: <span className="text-indigo-600 dark:text-indigo-400 capitalize">{slug}</span>
+                Thể loại: <span className="text-indigo-600 dark:text-indigo-400 capitalize">{genre}</span>
               </h1>
               <p className="text-gray-600 dark:text-gray-300 text-lg">
-                Khám phá {filtered.length} bài review thuộc thể loại "{slug}"
+                Khám phá {filtered.length} bài review thuộc thể loại "{genre}"
               </p>
             </div>
           </div>
@@ -105,7 +158,7 @@ const GenrePage = () => {
           {/* Search Bar */}
           <div className="relative flex-1">
             <label htmlFor="search-input" className="sr-only">
-              Tìm kiếm bài review trong thể loại {slug}
+              Tìm kiếm bài review trong thể loại {genre}
             </label>
             <FaSearch className="absolute top-1/2 left-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" aria-hidden="true" />
             <input
@@ -156,8 +209,8 @@ const GenrePage = () => {
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
                 {searchTerm 
-                  ? `Không có bài review nào khớp với "${searchTerm}" trong thể loại ${slug}`
-                  : `Chưa có review nào thuộc thể loại "${slug}". Hãy quay lại sau hoặc khám phá các thể loại khác.`
+                  ? `Không có bài review nào khớp với "${searchTerm}" trong thể loại ${genre}`
+                  : `Chưa có review nào thuộc thể loại "${genre}". Hãy quay lại sau hoặc khám phá các thể loại khác.`
                 }
               </p>
             </div>
@@ -181,10 +234,12 @@ const GenrePage = () => {
           </div>
         ) : (
           <>
+          {/* Results Content */}
+          <div className="space-y-8">
             {/* Results Count */}
             <div className="mb-6">
               <p className="text-gray-600 dark:text-gray-300">
-                Hiển thị <span className="font-semibold text-indigo-600 dark:text-indigo-400">{filtered.length}</span> kết quả
+                Hiển thị <span className="font-semibold text-indigo-600 dark:text-indigo-400">{paginatedReviews.length}</span> trong tổng số <span className="font-semibold">{filtered.length}</span> kết quả
                 {searchTerm && (
                   <span> cho "<span className="font-medium">{searchTerm}</span>"
                     <button
@@ -200,7 +255,7 @@ const GenrePage = () => {
             
             {/* Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filtered.map(review => (
+              {paginatedReviews.map(review => (
                 <AnimatedCard 
                   key={review._id} 
                   review={review}
@@ -208,6 +263,17 @@ const GenrePage = () => {
                 />
               ))}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                className="pt-8"
+              />
+            )}
+          </div>
           </>
         )}
       </div>

@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchGames } from '../api/rawgApi';
-import { FaSearch, FaStar, FaTimes, FaEye, FaSave, FaImage, FaMagic, FaFileAlt, FaLightbulb } from 'react-icons/fa';
+import { searchGames, getGenres, getPlatforms } from '../api/rawgApi';
+import { FaSearch, FaStar, FaTimes, FaEye, FaSave, FaImage, FaMagic, FaFileAlt, FaLightbulb, FaPlus, FaGamepad } from 'react-icons/fa';
+import { createPost } from '../api/reviews';
+import { useAuth } from '../hooks';
+import { useNotification } from '../contexts/NotificationContext';
 import MenuBar from '../components/editor/MenuBar';
 
 // Import TipTap
@@ -13,6 +16,13 @@ import '../styles/editor.css';
 
 const CreateReviewPage = () => {
     const navigate = useNavigate();
+
+    // Authentication and notification hooks
+    const { user, isAuthenticated } = useAuth();
+    const { showSuccess, showError, showWarning, showInfo } = useNotification();
+    
+    // Loading state for form submission
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // State cho các thành phần form
     const [title, setTitle] = useState('');
@@ -26,6 +36,14 @@ const CreateReviewPage = () => {
     const [selectedGame, setSelectedGame] = useState(null);
     const debounceTimeout = useRef(null);
 
+    // State cho tính năng tự tạo game
+    const [isCustomGameMode, setIsCustomGameMode] = useState(false);
+    const [customGameName, setCustomGameName] = useState('');
+    const [customGameGenres, setCustomGameGenres] = useState([]);
+    const [customGamePlatforms, setCustomGamePlatforms] = useState([]);
+    const [availableGenres, setAvailableGenres] = useState([]);
+    const [availablePlatforms, setAvailablePlatforms] = useState([]);
+
     // State cho tính năng nâng cao
     const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -36,155 +54,226 @@ const CreateReviewPage = () => {
     const [errors, setErrors] = useState({});
     const [wordCount, setWordCount] = useState(0);
 
-    // Templates cho review
-    const reviewTemplates = {
-        standard: {
-            name: 'Đánh giá tiêu chuẩn',
-            content: `<h2>Giới thiệu</h2>
-<p>Game này mang đến những trải nghiệm gì đặc biệt?</p>
+    // State cho upload hình ảnh tùy chỉnh
+    const [customImage, setCustomImage] = useState(null);
+    const [customImagePreview, setCustomImagePreview] = useState(null);
+    const [imageHash, setImageHash] = useState(null);
+    const fileInputRef = useRef(null);
 
-<h2>Điểm mạnh</h2>
-<ul>
-<li><p>Đồ họa và âm thanh</p></li>
-<li><p>Cốt truyện và nhân vật</p></li>
-<li><p>Gameplay và cơ chế</p></li>
-</ul>
-
-<h2>Điểm yếu</h2>
-<ul>
-<li><p>Những vấn đề gặp phải</p></li>
-<li><p>Điểm cần cải thiện</p></li>
-</ul>
-
-<h2>Kết luận</h2>
-<p>Đánh giá tổng thể và lời khuyên cho người chơi.</p>`
-        },
-        quick: {
-            name: 'Đánh giá nhanh',
-            content: `<p><strong>Game này có gì hay?</strong></p>
-<p>Viết cảm nhận tổng quan về game...</p>
-
-<p><strong>Điểm cộng:</strong></p>
-<p>Liệt kê những điểm mạnh...</p>
-
-<p><strong>Điểm trừ:</strong></p>
-<p>Liệt kê những điểm yếu...</p>
-
-<p><strong>Đánh giá:</strong> X/10</p>`
-        },
-        detailed: {
-            name: 'Đánh giá chi tiết',
-            content: `<h1>Review chi tiết</h1>
-
-<h2>🎮 Tổng quan</h2>
-<p>Mô tả tổng quan về game, thể loại, nhà phát hành...</p>
-
-<h2>📊 Thông số kỹ thuật</h2>
-<p>Yêu cầu hệ thống, nền tảng hỗ trợ...</p>
-
-<h2>🎨 Đồ họa & Âm thanh</h2>
-<p>Đánh giá về visual, sound design...</p>
-
-<h2>🎯 Gameplay</h2>
-<p>Trải nghiệm chơi, cơ chế, độ khó...</p>
-
-<h2>📖 Cốt truyện & Nhân vật</h2>
-<p>Đánh giá về story, character development...</p>
-
-<h2>⚖️ Ưu & Nhược điểm</h2>
-<h3>Ưu điểm:</h3>
-<ul>
-<li><p></p></li>
-<li><p></p></li>
-</ul>
-
-<h3>Nhược điểm:</h3>
-<ul>
-<li><p></p></li>
-<li><p></p></li>
-</ul>
-
-<h2>💰 Giá trị & Lời khuyên</h2>
-<p>Đánh giá về giá cả, khuyến nghị mua/sale...</p>
-
-<h2>🏆 Kết luận</h2>
-<p>Đánh giá tổng thể và điểm số.</p>`
-        }
-    };
-
-    // Cấu hình TipTap editor với auto-save (không auto-resize)
+    // Cấu hình TipTap editor với auto-save và real-time validation
     const editor = useEditor({
         extensions: [StarterKit],
-        content: selectedTemplate ? reviewTemplates[selectedTemplate].content : '<p>Cảm nghĩ của bạn về game này...</p>',
+        content: '<p>Cảm nghĩ của bạn về game này...</p>',
         onUpdate: ({ editor }) => {
             const text = editor.getText();
-            setWordCount(text.split(/\s+/).filter(word => word.length > 0).length);
-
-            // Auto-save draft
-            handleAutoSave();
+            const newWordCount = text.split(/\s+/).filter(word => word.length > 0).length;
+            setWordCount(newWordCount);
+            
+            // Real-time validation for content
+            validateField('content', text);
+            
+            // Auto-save draft (with throttling)
+            if (isAuthenticated) {
+                handleAutoSave();
+            }
         }
     });
 
-    // Validation function
-    const validateForm = () => {
-        const newErrors = {};
+    // Real-time validation function
+    const validateField = (fieldName, value) => {
+        setErrors(currentErrors => {
+            const newErrors = { ...currentErrors };
+            
+            switch (fieldName) {
+                case 'game':
+                    if (value) {
+                        delete newErrors.game;
+                    } else {
+                        newErrors.game = 'Vui lòng chọn game để review';
+                    }
+                    break;
+                case 'title':
+                    if (!value?.trim()) {
+                        newErrors.title = 'Tiêu đề không được để trống';
+                    } else if (value.length < 10) {
+                        newErrors.title = 'Tiêu đề phải có ít nhất 10 ký tự';
+                    } else if (value.length > 200) {
+                        newErrors.title = 'Tiêu đề không được quá 200 ký tự';
+                    } else {
+                        delete newErrors.title;
+                    }
+                    break;
+                case 'rating':
+                    if (value === 0 || !value) {
+                        newErrors.rating = 'Vui lòng đánh giá game (1-5 sao)';
+                    } else {
+                        delete newErrors.rating;
+                    }
+                    break;
+                case 'content':
+                    const content = typeof value === 'string' ? value : (editor?.getText() || '');
+                    const currentWordCount = content.split(/\s+/).filter(word => word.length > 0).length;
+                    if (!content.trim() || content === 'Cảm nghĩ của bạn về game này...') {
+                        newErrors.content = 'Vui lòng viết nội dung review';
+                    } else if (currentWordCount < 50) {
+                        newErrors.content = 'Review nên có ít nhất 50 từ';
+                    } else {
+                        delete newErrors.content;
+                    }
+                    break;
+                case 'tags':
+                    if (!value || value.length === 0) {
+                        newErrors.tags = 'Vui lòng thêm ít nhất 1 tag';
+                    } else if (value.length > 10) {
+                        newErrors.tags = 'Không được thêm quá 10 tags';
+                    } else {
+                        delete newErrors.tags;
+                    }
+                    break;
+            }
+            
+            return newErrors;
+        });
+    };
 
-        if (!selectedGame) {
-            newErrors.game = 'Vui lòng chọn game để review';
+    // Check authentication on component mount
+    useEffect(() => {
+        if (!isAuthenticated) {
+            showWarning('Bạn cần đăng nhập để viết review');
+            navigate('/login');
+            return;
         }
+    }, [isAuthenticated, navigate, showWarning]);
 
-        if (!title.trim()) {
-            newErrors.title = 'Tiêu đề không được để trống';
-        } else if (title.length < 10) {
-            newErrors.title = 'Tiêu đề phải có ít nhất 10 ký tự';
+    // Load available genres and platforms on component mount
+    useEffect(() => {
+        const loadGenresAndPlatforms = async () => {
+            try {
+                console.log('Loading genres and platforms...');
+                const [genresData, platformsData] = await Promise.all([
+                    getGenres(),
+                    getPlatforms()
+                ]);
+                console.log('Genres data:', genresData);
+                console.log('Platforms data:', platformsData);
+                setAvailableGenres(genresData.data.results || []);
+                setAvailablePlatforms(platformsData.data.results || []);
+                console.log('Available genres set:', genresData.data.results?.length || 0);
+                console.log('Available platforms set:', platformsData.data.results?.length || 0);
+            } catch (error) {
+                console.error('Error loading genres and platforms:', error);
+                showError('Không thể tải danh sách thể loại và nền tảng');
+            }
+        };
+
+        loadGenresAndPlatforms();
+    }, []);
+
+    // Load draft from localStorage on component mount
+    useEffect(() => {
+        const loadDraft = () => {
+            try {
+                const savedDraft = localStorage.getItem('review-draft');
+                if (savedDraft) {
+                    const draftData = JSON.parse(savedDraft);
+                    console.log('Loading draft:', draftData);
+                    
+                    // Restore form data
+                    if (draftData.title) setTitle(draftData.title);
+                    if (draftData.rating) setRating(draftData.rating);
+                    if (draftData.tags) setTags(draftData.tags);
+                    if (draftData.selectedGame) setSelectedGame(draftData.selectedGame);
+                    
+                    // Restore editor content when editor is ready
+                    if (draftData.content && editor) {
+                        editor.commands.setContent(draftData.content);
+                    }
+                    
+                    setIsDraft(true);
+                    setDraftId(draftData.id);
+                    showInfo('Đã khôi phục bản nháp trước đó');
+                }
+            } catch (error) {
+                console.error('Error loading draft:', error);
+                localStorage.removeItem('review-draft'); // Remove corrupted draft
+            }
+        };
+
+        // Only load draft if user is authenticated
+        if (isAuthenticated) {
+            loadDraft();
         }
+    }, [isAuthenticated, editor, showInfo]);
 
-        if (rating === 0) {
-            newErrors.rating = 'Vui lòng đánh giá game (1-5 sao)';
+    // Toggle custom game mode
+    const toggleCustomGameMode = () => {
+        setIsCustomGameMode(!isCustomGameMode);
+        if (!isCustomGameMode) {
+            // Reset search when entering custom mode
+            setSearchTerm('');
+            setSearchResults([]);
+            setSelectedGame(null);
+        } else {
+            // Reset custom game data when exiting custom mode
+            setCustomGameName('');
+            setCustomGameGenres([]);
+            setCustomGamePlatforms([]);
         }
+    };
 
-        const content = editor?.getText() || '';
-        if (!content.trim() || content === 'Cảm nghĩ của bạn về game này...') {
-            newErrors.content = 'Vui lòng viết nội dung review';
-        } else if (wordCount < 50) {
-            newErrors.content = 'Review nên có ít nhất 50 từ';
-        }
+    // Handle custom game genre selection
+    const handleGenreToggle = (genre) => {
+        console.log('Genre toggle clicked:', genre);
+        setCustomGameGenres(prev => {
+            const isSelected = prev.some(g => g.id === genre.id);
+            console.log('Genre is selected:', isSelected);
+            if (isSelected) {
+                const newGenres = prev.filter(g => g.id !== genre.id);
+                console.log('Removing genre, new list:', newGenres);
+                return newGenres;
+            } else {
+                const newGenres = [...prev, genre];
+                console.log('Adding genre, new list:', newGenres);
+                return newGenres;
+            }
+        });
+    };
 
-        if (tags.length === 0) {
-            newErrors.tags = 'Vui lòng thêm ít nhất 1 tag';
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
+    // Handle custom game platform selection
+    const handlePlatformToggle = (platform) => {
+        console.log('Platform toggle clicked:', platform);
+        setCustomGamePlatforms(prev => {
+            const isSelected = prev.some(p => p.id === platform.id);
+            console.log('Platform is selected:', isSelected);
+            if (isSelected) {
+                const newPlatforms = prev.filter(p => p.id !== platform.id);
+                console.log('Removing platform, new list:', newPlatforms);
+                return newPlatforms;
+            } else {
+                const newPlatforms = [...prev, platform];
+                console.log('Adding platform, new list:', newPlatforms);
+                return newPlatforms;
+            }
+        });
     };
 
     // Auto-save functionality
     const handleAutoSave = async () => {
         if (isSaving) return;
-
         const content = editor?.getHTML();
         if (!content || content === '<p></p>') return;
-
         setIsSaving(true);
         try {
-            // Simulate API call to save draft
             await new Promise(resolve => setTimeout(resolve, 500));
-
             setLastSaved(new Date());
             setIsDraft(true);
-            // Here you would save to localStorage or send to API
             const draftData = {
                 id: draftId || Date.now().toString(),
-                title,
-                content,
-                rating,
-                tags,
-                selectedGame,
+                title, content, rating, tags, selectedGame,
                 timestamp: new Date().toISOString()
             };
             localStorage.setItem('review-draft', JSON.stringify(draftData));
             if (!draftId) setDraftId(draftData.id);
-
         } catch (error) {
             console.error('Auto-save failed:', error);
         } finally {
@@ -192,34 +281,73 @@ const CreateReviewPage = () => {
         }
     };
 
-    // Load draft functionality
-    const loadDraft = () => {
-        const draft = localStorage.getItem('review-draft');
-        if (draft) {
-            const draftData = JSON.parse(draft);
-            setTitle(draftData.title || '');
-            setRating(draftData.rating || 0);
-            setTags(draftData.tags || []);
-            setSelectedGame(draftData.selectedGame || null);
-            setDraftId(draftData.id);
-            setIsDraft(true);
-            if (editor && draftData.content) {
-                editor.commands.setContent(draftData.content);
-            }
+    // Hàm tạo hash cho hình ảnh
+    const generateImageHash = async (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const arrayBuffer = e.target.result;
+                const hashBuffer = new Uint8Array(arrayBuffer);
+                let hash = 0;
+                for (let i = 0; i < hashBuffer.length; i++) {
+                    hash = ((hash << 5) - hash + hashBuffer[i]) & 0xffffffff;
+                }
+                resolve(hash.toString());
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    };
+
+    // Hàm xử lý upload hình ảnh tùy chỉnh
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Kiểm tra định dạng file
+        if (!file.type.startsWith('image/')) {
+            showError('Vui lòng chọn file hình ảnh hợp lệ');
+            return;
+        }
+
+        // Kiểm tra kích thước file (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            showError('Kích thước hình ảnh không được vượt quá 5MB');
+            return;
+        }
+
+        try {
+            // Tạo preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setCustomImagePreview(e.target.result);
+            };
+            reader.readAsDataURL(file);
+
+            // Tạo base64 và hash
+            const base64Reader = new FileReader();
+            base64Reader.onload = async (e) => {
+                const base64 = e.target.result;
+                const hash = await generateImageHash(file);
+                setCustomImage(base64);
+                setImageHash(hash);
+                showSuccess('Đã tải lên hình ảnh thành công');
+            };
+            base64Reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            showError('Có lỗi xảy ra khi tải lên hình ảnh');
         }
     };
 
-    // Template selection
-    const handleTemplateSelect = (templateKey) => {
-        setSelectedTemplate(templateKey);
-        if (editor) {
-            editor.commands.setContent(reviewTemplates[templateKey].content);
+    // Hàm xóa hình ảnh tùy chỉnh
+    const removeCustomImage = () => {
+        setCustomImage(null);
+        setCustomImagePreview(null);
+        setImageHash(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
         }
-    };
-
-    // Preview functionality
-    const togglePreview = () => {
-        setIsPreviewMode(!isPreviewMode);
+        showInfo('Đã xóa hình ảnh tùy chỉnh');
     };
 
     const handleSearchChange = (e) => {
@@ -239,118 +367,184 @@ const CreateReviewPage = () => {
 
     const handleSelectGame = (game) => {
         setSelectedGame(game);
-        setTitle(game.name);
+        setTitle(game.name || '');
         setSearchTerm('');
         setSearchResults([]);
-        // Clear game error
-        if (errors.game) {
-            setErrors(prev => ({ ...prev, game: null }));
-        }
+        validateField('game', game);
+        validateField('title', game.name || '');
+        showSuccess(`Đã chọn game: ${game.name}`);
+        
+        // Log game data to see available platform information
+        console.log('Selected game data:', {
+            game,
+            platforms: game.platforms,
+            parent_platforms: game.parent_platforms,
+            genres: game.genres
+        });
     };
-
-    // Load draft on component mount
-    useEffect(() => {
-        loadDraft();
-        return () => {
-            if (debounceTimeout.current) {
-                clearTimeout(debounceTimeout.current);
-            }
-        };
-    }, []);
-
-
-
-    // Update word count when content changes
-    useEffect(() => {
-        if (editor) {
-            const text = editor.getText();
-            setWordCount(text.split(/\s+/).filter(word => word.length > 0).length);
-        }
-    }, [editor?.getText()]);
 
     const handleTagKeyDown = (e) => {
         if (e.key === 'Enter' && tagInput.trim()) {
             e.preventDefault();
-            if (!tags.includes(tagInput.trim())) setTags([...tags, tagInput.trim()]);
-            setTagInput('');
+            const newTag = tagInput.trim().toLowerCase();
+            if (!tags.includes(newTag) && tags.length < 10) {
+                const newTags = [...tags, newTag];
+                setTags(newTags);
+                setTagInput('');
+                validateField('tags', newTags);
+            } else if (tags.includes(newTag)) {
+                showWarning('Tag này đã tồn tại');
+            } else {
+                showWarning('Không thể thêm quá 10 tags');
+            }
         }
     };
 
-    const removeTag = (tagToRemove) => setTags(tags.filter(tag => tag !== tagToRemove));
+    const removeTag = (tagToRemove) => {
+        const newTags = tags.filter(tag => tag !== tagToRemove);
+        setTags(newTags);
+        validateField('tags', newTags);
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        // Validate form
-        if (!validateForm()) {
+        if (!isAuthenticated) {
+            showError('Bạn cần đăng nhập để đăng bài');
+            navigate('/login');
             return;
         }
-
-        const content = editor.getHTML();
-        const reviewData = {
-            gameId: selectedGame.id,
-            gameName: selectedGame.name,
-            gameImage: selectedGame.background_image,
-            title: title.trim(),
-            content,
-            rating,
-            tags,
-            wordCount,
-            author: 'current-user', // Would come from auth context
-            createdAt: new Date().toISOString()
-        };
-
+        
+        setIsSubmitting(true);
         try {
-            // Here you would make API call
-            console.log("Submitting Review Data:", reviewData);
+            const content = editor.getHTML();
+            
+            // Validate all required fields before submission
+            if (isCustomGameMode) {
+                // Validate custom game
+                if (!customGameName.trim()) {
+                    showError('Vui lòng nhập tên game');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (customGameGenres.length === 0) {
+                    showError('Vui lòng chọn ít nhất một thể loại cho game');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (customGamePlatforms.length === 0) {
+                    showError('Vui lòng chọn ít nhất một nền tảng cho game');
+                    setIsSubmitting(false);
+                    return;
+                }
+            } else {
+                validateField('game', selectedGame);
+            }
+            
+            validateField('title', title);
+            validateField('rating', rating);
+            validateField('content', content);
+            validateField('tags', tags);
+            
+            // Check if there are any validation errors
+            if (Object.keys(errors).length > 0) {
+                showError('Vui lòng kiểm tra và sửa các lỗi trong form');
+                setIsSubmitting(false);
+                return;
+            }
+            
+            // Extract platform and genre information from selected game or custom game
+            let gamePlatforms, gameGenres, gameId, gameName;
+            
+            if (isCustomGameMode) {
+                // Use custom game data
+                gamePlatforms = customGamePlatforms.map(p => p.name);
+                gameGenres = customGameGenres.map(g => g.name);
+                gameId = null; // Custom games don't have RAWG ID
+                gameName = customGameName.trim();
+            } else {
+                // Use selected game data
+                gamePlatforms = selectedGame?.platforms?.map(p => p.platform?.name || p.name) || [];
+                gameGenres = selectedGame?.genres?.map(g => g.name) || [];
+                gameId = selectedGame?.id?.toString();
+                gameName = selectedGame?.name;
+            }
+            
+            const reviewData = {
+                title: title.trim(),
+                content, tags, rating,
+                gameId,
+                gameName,
+                platforms: gamePlatforms,
+                genres: gameGenres,
+                isCustomGame: isCustomGameMode,
+            };
 
-            // Clear draft if it exists
+            // Thêm dữ liệu hình ảnh (ưu tiên hình ảnh tùy chỉnh)
+            if (customImage && imageHash) {
+                reviewData.imageBase64 = customImage;
+                reviewData.imageHash = imageHash;
+            } else if (selectedGame?.background_image) {
+                reviewData.gameImage = selectedGame.background_image;
+            }
+            
+            console.log('Creating post with platform data:', {
+                platforms: gamePlatforms,
+                genres: gameGenres,
+                selectedGame: selectedGame
+            });
+            
+            const response = await createPost(reviewData);
             if (isDraft) {
                 localStorage.removeItem('review-draft');
+                setIsDraft(false);
+                setDraftId(null);
             }
-
-            alert("🎉 Bài review đã được đăng thành công!");
-            navigate('/');
+            showSuccess('🎉 Bài review đã được đăng thành công!');
+            const postId = response?.data?._id || response?._id;
+            if (postId) {
+                navigate(`/review/${postId}`);
+            } else {
+                navigate('/');
+            }
         } catch (error) {
-            console.error("Submit failed:", error);
-            alert("❌ Có lỗi xảy ra khi đăng bài. Vui lòng thử lại!");
-        }
-    };
-
-    const handleSaveDraft = () => {
-        handleAutoSave();
-        alert("📝 Đã lưu bản nháp!");
-    };
-
-    const handleClearDraft = () => {
-        if (confirm("Bạn có chắc muốn xóa bản nháp này?")) {
-            localStorage.removeItem('review-draft');
-            setIsDraft(false);
-            setDraftId(null);
-            setLastSaved(null);
-            setTitle('');
-            setRating(0);
-            setTags([]);
-            setSelectedGame(null);
-            setSelectedTemplate(null);
-            if (editor) {
-                editor.commands.setContent('<p>Cảm nghĩ của bạn về game này...</p>');
+            console.error('Submit failed:', error);
+            let errorMessage = 'Có lỗi xảy ra khi đăng bài. Vui lòng thử lại!';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.message) {
+                errorMessage = error.message;
             }
+            showError(`❌ ${errorMessage}`);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const StarRating = () => (
         <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((star) => (
-                <FaStar key={star} onClick={() => setRating(star)}
-                    className={`cursor-pointer transition-colors ${rating >= star ? 'text-yellow-400' : 'text-gray-300'}`} size={24} />
+                <FaStar 
+                    key={star} 
+                    onClick={() => {
+                        setRating(star);
+                        validateField('rating', star);
+                    }}
+                    className={`cursor-pointer transition-colors hover:scale-110 ${
+                        rating >= star ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-200'
+                    }`} 
+                    size={24} 
+                />
             ))}
         </div>
     );
 
+    // Don't render if not authenticated
+    if (!isAuthenticated) {
+        return null;
+    }
+
     return (
         <div className="p-4 md:p-8">
-            {/* Hero */}
             <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-2xl mb-6 shadow-lg">
                 <div className="px-6 md:px-8 py-6 flex items-center gap-4">
                     <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
@@ -363,85 +557,13 @@ const CreateReviewPage = () => {
                 </div>
             </div>
             <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl p-6 md:p-8">
-                {/* Header with enhanced toolbar */}
                 <div className="mb-8">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-900">✍️ Viết bài Review mới</h1>
                             <p className="text-gray-500">Chia sẻ cảm nghĩ của bạn về một tựa game cho mọi người.</p>
                         </div>
-
-                        {/* Toolbar */}
-                        <div className="flex flex-wrap items-center gap-2">
-                            {/* Template selector */}
-                            <select
-                                value={selectedTemplate || ''}
-                                onChange={(e) => handleTemplateSelect(e.target.value)}
-                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            >
-                                <option value="">Chọn template</option>
-                                {Object.entries(reviewTemplates).map(([key, template]) => (
-                                    <option key={key} value={key}>{template.name}</option>
-                                ))}
-                            </select>
-
-                            {/* Draft status */}
-                            {isDraft && (
-                                <div className="flex items-center gap-2 px-3 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm">
-                                    <FaSave />
-                                    <span>Đã lưu nháp</span>
-                                    {lastSaved && (
-                                        <span className="text-xs">
-                                            {new Date(lastSaved).toLocaleTimeString('vi-VN')}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Preview toggle */}
-                            <button
-                                onClick={togglePreview}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                    isPreviewMode
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                <FaEye />
-                                {isPreviewMode ? 'Chỉnh sửa' : 'Xem trước'}
-                            </button>
-
-                            {/* Save draft */}
-                            <button
-                                onClick={handleSaveDraft}
-                                disabled={isSaving}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                            >
-                                <FaSave />
-                                {isSaving ? 'Đang lưu...' : 'Lưu nháp'}
-                            </button>
-
-                            {/* Clear draft */}
-                            {isDraft && (
-                                <button
-                                    onClick={handleClearDraft}
-                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-                                >
-                                    <FaTimes />
-                                    Xóa nháp
-                                </button>
-                            )}
-                        </div>
                     </div>
-
-                    {/* Status messages */}
-                    {isSaving && (
-                        <div className="flex items-center gap-2 text-blue-600 text-sm mb-4">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                            <span>Đang tự động lưu...</span>
-                        </div>
-                    )}
-
                     {Object.keys(errors).length > 0 && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
                             <h3 className="text-red-800 font-medium mb-2">Vui lòng sửa các lỗi sau:</h3>
@@ -454,289 +576,356 @@ const CreateReviewPage = () => {
                     )}
                 </div>
 
-                {isPreviewMode ? (
-                    /* Preview Mode */
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-2 mb-4">
-                            <FaEye className="text-indigo-600" />
-                            <h2 className="text-xl font-bold text-gray-900">Xem trước bài viết</h2>
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="md:col-span-2 space-y-6">
+                        {/* Tìm kiếm Game */}
+                        <div className="relative">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-bold text-gray-700">
+                                    1. {isCustomGameMode ? 'Thêm game mới' : 'Tìm kiếm game'} <span className="text-red-500">*</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={toggleCustomGameMode}
+                                    className={`flex items-center space-x-2 px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                                        isCustomGameMode
+                                            ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {isCustomGameMode ? (
+                                        <>
+                                            <FaSearch className="w-4 h-4" />
+                                            <span>Tìm kiếm game</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaPlus className="w-4 h-4" />
+                                            <span>Thêm game mới</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {!isCustomGameMode ? (
+                                <>
+                                    <div className="relative">
+                                        <FaSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Ví dụ: Cyberpunk 2077..."
+                                            value={searchTerm}
+                                            onChange={handleSearchChange}
+                                            className={`w-full pl-10 p-3 border rounded-lg focus:outline-none focus:ring-2 ${
+                                                errors.game
+                                                    ? 'border-red-500 focus:ring-red-500'
+                                                    : 'border-gray-300 focus:ring-indigo-500'
+                                            }`}
+                                        />
+                                    </div>
+                                    {searchResults.length > 0 && (
+                                        <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-xl mt-1 max-h-72 overflow-y-auto shadow-2xl">
+                                            {searchResults.map(game => (
+                                                <li key={game.id} onClick={() => handleSelectGame(game)} className="p-3 hover:bg-gray-50 cursor-pointer flex items-center gap-4 transition-colors">
+                                                    <img src={game.background_image} alt={game.name} className="w-16 h-10 object-cover rounded-lg ring-1 ring-gray-200"/>
+                                                    <span className="text-sm font-medium text-gray-800">{game.name}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {/* Custom Game Form */}
+                                    <div className="space-y-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                                        <div className="flex items-center space-x-2 text-indigo-700 mb-3">
+                                            <FaGamepad className="w-5 h-5" />
+                                            <span className="font-medium">Thông tin game mới</span>
+                                        </div>
+
+                                        {/* Game Name Input */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Tên game *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={customGameName}
+                                                onChange={(e) => setCustomGameName(e.target.value)}
+                                                placeholder="Nhập tên game..."
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                                required
+                                            />
+                                        </div>
+
+                                        {/* Genres Selection */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Thể loại ({customGameGenres.length} đã chọn)
+                                            </label>
+                                            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2 bg-white">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {availableGenres.map((genre) => (
+                                                        <label key={genre.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={customGameGenres.some(g => g.id === genre.id)}
+                                                                onChange={() => handleGenreToggle(genre)}
+                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            />
+                                                            <span className="text-sm text-gray-700">{genre.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Platforms Selection */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Nền tảng ({customGamePlatforms.length} đã chọn)
+                                            </label>
+                                            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2 bg-white">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {availablePlatforms.map((platform) => (
+                                                        <label key={platform.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={customGamePlatforms.some(p => p.id === platform.id)}
+                                                                onChange={() => handlePlatformToggle(platform)}
+                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            />
+                                                            <span className="text-sm text-gray-700">{platform.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                            {errors.game && (
+                                <p className="text-red-500 text-sm mt-1">{errors.game}</p>
+                            )}
                         </div>
 
-                        {selectedGame && (
-                            <div className="bg-gray-900 text-white rounded-lg overflow-hidden">
-                                <img src={selectedGame.background_image} alt={selectedGame.name} className="w-full h-48 object-cover" />
-                                <div className="p-6">
-                                    <div className="flex items-center gap-4 mb-4">
-                                        <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-lg font-bold">
-                                            {rating}
-                                        </div>
-                                        <div>
-                                            <h1 className="text-xl font-bold">{title}</h1>
-                                            <p className="text-gray-300">{selectedGame.name}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 mb-4">
-                                        {tags.map((tag, index) => (
-                                            <span key={index} className="bg-indigo-600 px-2 py-1 rounded text-sm">
-                                                #{tag}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div
-                                        className="prose prose-invert max-w-none"
-                                        dangerouslySetInnerHTML={{ __html: editor?.getHTML() }}
-                                    />
+                        {/* Tiêu đề Review */}
+                        <div>
+                            <label htmlFor="title" className="block text-sm font-bold text-gray-700 mb-1">
+                                2. Tiêu đề bài viết <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                id="title"
+                                type="text"
+                                value={title}
+                                onChange={(e) => {
+                                    const newTitle = e.target.value;
+                                    setTitle(newTitle);
+                                    validateField('title', newTitle);
+                                }}
+                                placeholder="Ví dụ: Cyberpunk 2077 - Một trải nghiệm tuyệt vời nhưng đầy tranh cãi"
+                                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
+                                    errors.title
+                                        ? 'border-red-500 focus:ring-red-500'
+                                        : 'border-gray-300 focus:ring-indigo-500'
+                                }`}
+                            />
+                            {errors.title && (
+                                <p className="text-red-500 text-sm mt-1">{errors.title}</p>
+                            )}
+                            <p className="text-gray-500 text-sm mt-1">
+                                {title.length}/200 ký tự (tối thiểu 10 ký tự)
+                            </p>
+                        </div>
+
+                        {/* Trình soạn thảo TipTap */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">
+                                3. Nội dung Review <span className="text-red-500">*</span>
+                            </label>
+                            <div className={`border rounded-xl overflow-hidden ${
+                                errors.content ? 'border-red-500' : 'border-gray-300'
+                            }`}>
+                                <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
+                                    <MenuBar editor={editor} />
+                                </div>
+                                <div className="p-6" style={{ height: '300px', overflowY: 'auto' }}>
+                                    <EditorContent editor={editor} />
+                                </div>
+                            </div>
+                            {errors.content && (
+                                <p className="text-red-500 text-sm mt-1">{errors.content}</p>
+                            )}
+                            <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
+                                <span>Số từ: {wordCount}</span>
+                                <span>Độ dài tối thiểu: 50 từ</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="md:col-span-1 space-y-6">
+                        {/* Game đã chọn hoặc game tự tạo */}
+                        {(selectedGame || (isCustomGameMode && customGameName)) && (
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    {selectedGame ? 'Game đã chọn' : 'Game mới đã tạo'}
+                                </label>
+                                <div className="bg-gray-50 p-4 rounded-lg text-center border-2 border-green-200">
+                                    {selectedGame ? (
+                                        <>
+                                            <img src={selectedGame.background_image} alt={selectedGame.name} className="w-full h-32 object-cover rounded-lg mx-auto"/>
+                                            <h3 className="font-semibold mt-2">{selectedGame.name}</h3>
+                                            <p className="text-sm text-gray-600 mt-1">Đã chọn ✓</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-full h-32 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-lg mx-auto flex items-center justify-center">
+                                                <FaGamepad className="text-white text-4xl" />
+                                            </div>
+                                            <h3 className="font-semibold mt-2">{customGameName}</h3>
+                                            <div className="text-sm text-gray-600 mt-1">
+                                                {customGameGenres.length > 0 && (
+                                                    <p>Thể loại: {customGameGenres.map(g => g.name).join(', ')}</p>
+                                                )}
+                                                {customGamePlatforms.length > 0 && (
+                                                    <p>Nền tảng: {customGamePlatforms.map(p => p.name).join(', ')}</p>
+                                                )}
+                                                <p className="text-green-600 font-medium">Game mới ✓</p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}
 
                         {!selectedGame && (
-                            <div className="text-center py-12 bg-gray-100 rounded-lg">
-                                <FaFileAlt className="text-gray-400 text-4xl mb-4 mx-auto" />
-                                <p className="text-gray-600">Chọn game và viết nội dung để xem preview</p>
+                            <div className="bg-gray-50 p-4 rounded-lg text-center border-2 border-dashed border-gray-300">
+                                <FaSearch className="text-gray-400 text-3xl mb-2 mx-auto" />
+                                <p className="text-gray-600 text-sm">Chưa chọn game</p>
                             </div>
                         )}
-                    </div>
-                ) : (
-                    /* Edit Mode */
-                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {/* Cột trái: Nội dung chính */}
-                        <div className="md:col-span-2 space-y-6">
-                            {/* Tìm kiếm Game */}
-                            <div className="relative">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">
-                                    1. Tìm kiếm game <span className="text-red-500">*</span>
-                                </label>
-                                <div className="relative">
-                                    <FaSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Ví dụ: Cyberpunk 2077..."
-                                        value={searchTerm}
-                                        onChange={handleSearchChange}
-                                        className={`w-full pl-10 p-3 border rounded-lg focus:outline-none focus:ring-2 ${
-                                            errors.game
-                                                ? 'border-red-500 focus:ring-red-500'
-                                                : 'border-gray-300 focus:ring-indigo-500'
-                                        }`}
-                                    />
-                                </div>
-                                {errors.game && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.game}</p>
-                                )}
-                                {searchResults.length > 0 && (
-                                    <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-xl mt-1 max-h-72 overflow-y-auto shadow-2xl">
-                                        {searchResults.map(game => (
-                                            <li key={game.id} onClick={() => handleSelectGame(game)} className="p-3 hover:bg-gray-50 cursor-pointer flex items-center gap-4 transition-colors">
-                                                <img src={game.background_image} alt={game.name} className="w-16 h-10 object-cover rounded-lg ring-1 ring-gray-200"/>
-                                                <span className="text-sm font-medium text-gray-800">{game.name}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
 
-                            {/* Tiêu đề Review */}
-                            <div>
-                                <label htmlFor="title" className="block text-sm font-bold text-gray-700 mb-1">
-                                    2. Tiêu đề bài viết <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    id="title"
-                                    type="text"
-                                    value={title}
-                                    onChange={(e) => {
-                                        setTitle(e.target.value);
-                                        if (errors.title) {
-                                            setErrors(prev => ({ ...prev, title: null }));
-                                        }
-                                    }}
-                                    placeholder="Ví dụ: Cyberpunk 2077 - Một trải nghiệm tuyệt vời nhưng đầy tranh cãi"
-                                    className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
-                                        errors.title
-                                            ? 'border-red-500 focus:ring-red-500'
-                                            : 'border-gray-300 focus:ring-indigo-500'
-                                    }`}
-                                />
-                                {errors.title && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.title}</p>
-                                )}
-                                <p className="text-gray-500 text-sm mt-1">
-                                    {title.length}/100 ký tự (tối thiểu 10 ký tự)
-                                </p>
-                            </div>
-
-                            {/* Trình soạn thảo TipTap */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">
-                                    3. Nội dung Review <span className="text-red-500">*</span>
-                                </label>
-                                <div className={`border rounded-xl overflow-hidden ${
-                                    errors.content ? 'border-red-500' : 'border-gray-300'
-                                }`}>
-                                    <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
-                                        <MenuBar editor={editor} />
+                        {/* Upload hình ảnh tùy chỉnh */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                                Hình ảnh tùy chỉnh (Tùy chọn)
+                            </label>
+                            <div className="space-y-3">
+                                {!customImagePreview ? (
+                                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageUpload}
+                                            className="hidden"
+                                        />
+                                        <FaImage className="text-gray-400 text-3xl mb-2 mx-auto" />
+                                        <p className="text-gray-600 text-sm mb-2">Tải lên hình ảnh của riêng bạn</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                                        >
+                                            Chọn hình ảnh
+                                        </button>
+                                        <p className="text-xs text-gray-500 mt-2">PNG, JPG, GIF tối đa 5MB</p>
                                     </div>
-                                    <div className="p-6" style={{ height: '440px', overflowY: 'auto' }}>
-                                        <EditorContent editor={editor} />
-                                    </div>
-                                </div>
-                                {errors.content && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.content}</p>
-                                )}
-                                <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
-                                    <span>Số từ: {wordCount}</span>
-                                    <span>Độ dài tối thiểu: 50 từ</span>
-                                </div>
-
-                                {/* Writing tips */}
-                                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                                    <div className="flex items-start gap-2">
-                                        <FaLightbulb className="text-blue-600 mt-1 flex-shrink-0" />
-                                        <div className="text-sm text-blue-800">
-                                            <p className="font-medium mb-1">Mẹo viết review:</p>
-                                            <ul className="space-y-1 text-xs">
-                                                <li>• Giới thiệu ngắn gọn về game</li>
-                                                <li>• Phân tích ưu và nhược điểm</li>
-                                                <li>• Đánh giá gameplay và đồ họa</li>
-                                                <li>• Khuyến nghị đối tượng chơi</li>
-                                            </ul>
+                                ) : (
+                                    <div className="relative">
+                                        <img
+                                            src={customImagePreview}
+                                            alt="Preview"
+                                            className="w-full h-32 object-cover rounded-lg"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={removeCustomImage}
+                                            className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                                        >
+                                            <FaTimes className="text-xs" />
+                                        </button>
+                                        <div className="mt-2 text-center">
+                                            <p className="text-sm text-green-600 font-medium">✓ Hình ảnh tùy chỉnh</p>
+                                            <p className="text-xs text-gray-500">Sẽ được sử dụng thay vì hình ảnh game</p>
                                         </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Cột phải: Thông tin phụ */}
-                        <div className="md:col-span-1 space-y-6 md:sticky md:top-24">
-                            {/* Game đã chọn */}
-                            {selectedGame && (
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Game đã chọn</label>
-                                    <div className="bg-gray-50 p-4 rounded-lg text-center border-2 border-green-200">
-                                        <img src={selectedGame.background_image} alt={selectedGame.name} className="w-full h-32 object-cover rounded-lg mx-auto"/>
-                                        <h3 className="font-semibold mt-2">{selectedGame.name}</h3>
-                                        <p className="text-sm text-gray-600 mt-1">Đã chọn ✓</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {!selectedGame && (
-                                <div className="bg-gray-50 p-4 rounded-lg text-center border-2 border-dashed border-gray-300">
-                                    <FaSearch className="text-gray-400 text-3xl mb-2 mx-auto" />
-                                    <p className="text-gray-600 text-sm">Chưa chọn game</p>
-                                </div>
-                            )}
-
-                            {/* Đánh giá */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">
-                                    4. Đánh giá của bạn <span className="text-red-500">*</span>
-                                </label>
-                                <StarRating />
-                                <p className="text-center text-2xl font-bold mt-2 text-gray-700">{rating}/5</p>
-                                {rating > 0 && (
-                                    <p className="text-center text-sm text-gray-600 mt-1">
-                                        {rating === 1 && 'Rất tệ'}
-                                        {rating === 2 && 'Tệ'}
-                                        {rating === 3 && 'Bình thường'}
-                                        {rating === 4 && 'Tốt'}
-                                        {rating === 5 && 'Xuất sắc'}
-                                    </p>
-                                )}
-                                {errors.rating && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.rating}</p>
-                                )}
-                            </div>
-
-                            {/* Thêm Tags */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">
-                                    5. Thêm Tags <span className="text-red-500">*</span>
-                                </label>
-                                <div className="flex flex-wrap gap-2 mb-2">
-                                    {tags.map(tag => (
-                                        <span key={tag} className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full text-sm">
-                                            #{tag}
-                                            <FaTimes onClick={() => removeTag(tag)} className="cursor-pointer hover:text-red-500"/>
-                                        </span>
-                                    ))}
-                                </div>
-                                <input
-                                    type="text"
-                                    value={tagInput}
-                                    onChange={(e) => {
-                                        setTagInput(e.target.value);
-                                        if (errors.tags) {
-                                            setErrors(prev => ({ ...prev, tags: null }));
-                                        }
-                                    }}
-                                    onKeyDown={handleTagKeyDown}
-                                    placeholder="Nhập tag rồi nhấn Enter..."
-                                    className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 placeholder-gray-600 ${
-                                        errors.tags
-                                            ? 'border-red-500 focus:ring-red-500'
-                                            : 'border-gray-300 focus:ring-indigo-500'
-                                    }`}
-                                />
-                                {errors.tags && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.tags}</p>
-                                )}
-                                <p className="text-gray-500 text-sm mt-1">
-                                    {tags.length} tag(s) - Mỗi tag cách nhau bởi dấu cách
+                        {/* Đánh giá */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                                4. Đánh giá của bạn <span className="text-red-500">*</span>
+                            </label>
+                            <StarRating />
+                            <p className="text-center text-2xl font-bold mt-2 text-gray-700">{rating}</p>
+                            {rating > 0 && (
+                                <p className="text-center text-sm text-gray-600 mt-1">
+                                    {rating === 1 && 'Rất tệ'}
+                                    {rating === 2 && 'Tệ'}
+                                    {rating === 3 && 'Bình thường'}
+                                    {rating === 4 && 'Tốt'}
+                                    {rating === 5 && 'Xuất sắc'}
                                 </p>
-
-                                {/* Tag suggestions */}
-                                <div className="mt-2">
-                                    <p className="text-xs text-gray-500 mb-1">Tag gợi ý:</p>
-                                    <div className="flex flex-wrap gap-1">
-                                        {['action', 'adventure', 'rpg', 'indie', 'multiplayer', 'singleplayer', 'open-world'].map(suggestion => (
-                                            !tags.includes(suggestion) && (
-                                                <button
-                                                    key={suggestion}
-                                                    onClick={() => {
-                                                        if (!tags.includes(suggestion)) {
-                                                            setTags([...tags, suggestion]);
-                                                        }
-                                                    }}
-                                                    className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200 transition-colors"
-                                                >
-                                                    + #{suggestion}
-                                                </button>
-                                            )
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Submit button */}
-                            <div className="pt-6 border-t border-gray-200">
-                                <button
-                                    type="submit"
-                                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                                    disabled={Object.keys(errors).length > 0}
-                                >
-                                    <FaMagic />
-                                    Đăng bài Review
-                                </button>
-
-                                {/* Progress indicator */}
-                                <div className="mt-3">
-                                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                        <span>Hoàn thành</span>
-                                        <span>{Math.round(((selectedGame ? 1 : 0) + (title.length >= 10 ? 1 : 0) + (rating > 0 ? 1 : 0) + (wordCount >= 50 ? 1 : 0) + (tags.length > 0 ? 1 : 0)) / 5 * 100)}%</span>
-                                    </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2">
-                                        <div
-                                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                                            style={{ width: `${Math.round(((selectedGame ? 1 : 0) + (title.length >= 10 ? 1 : 0) + (rating > 0 ? 1 : 0) + (wordCount >= 50 ? 1 : 0) + (tags.length > 0 ? 1 : 0)) / 5 * 100)}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
+                            )}
+                            {errors.rating && (
+                                <p className="text-red-500 text-sm mt-1">{errors.rating}</p>
+                            )}
                         </div>
-                    </form>
-                )}
+
+                        {/* Thêm Tags */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                                5. Thêm Tags <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {tags.map(tag => (
+                                    <span key={tag} className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full text-sm">
+                                        #{tag}
+                                        <FaTimes onClick={() => removeTag(tag)} className="cursor-pointer hover:text-red-500"/>
+                                    </span>
+                                ))}
+                            </div>
+                            <input
+                                type="text"
+                                value={tagInput}
+                                onChange={(e) => {
+                                    setTagInput(e.target.value);
+                                    if (errors.tags && tags.length > 0) {
+                                        validateField('tags', tags);
+                                    }
+                                }}
+                                onKeyDown={handleTagKeyDown}
+                                placeholder="Nhập tag rồi nhấn Enter..."
+                                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 placeholder-gray-600 ${
+                                    errors.tags
+                                        ? 'border-red-500 focus:ring-red-500'
+                                        : 'border-gray-300 focus:ring-indigo-500'
+                                }`}
+                            />
+                            {errors.tags && (
+                                <p className="text-red-500 text-sm mt-1">{errors.tags}</p>
+                            )}
+                            <p className="text-gray-500 text-sm mt-1">
+                                {tags.length} tag(s) - Tối đa 10 tags
+                            </p>
+                        </div>
+
+                        {/* Submit button */}
+                        <div className="pt-6 border-t border-gray-200">
+                            <button
+                                type="submit"
+                                disabled={isSubmitting || Object.keys(errors).length > 0}
+                                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                            >
+                                <FaMagic />
+                                {isSubmitting ? 'Đang đăng bài...' : 'Đăng bài Review'}
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     );
