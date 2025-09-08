@@ -1,14 +1,19 @@
 import app from "./server.js";
 import dotenv from "dotenv";
 
-async function main() {
-  dotenv.config();
-  // const client = new mongodb.MongoClient(process.env.MOVIE_REVIEWS_APP_URI);
-  const port = process.env.PORT || 5000;
+// Load environment variables
+dotenv.config();
 
-  // await client.connect();
+// For Vercel, we need to export the app as default
+// Vercel will handle the server initialization
+export default app;
+
+// For local development, start the server
+if (!process.env.VERCEL) {
+  const port = process.env.PORT || 8000;
+  
   app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+    console.log(`🚀 Server is running on port ${port}`);
+    console.log(`📄 API Documentation available at http://localhost:${port}/api-docs`);
   });
 }
-main().catch(console.error);

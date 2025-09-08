@@ -4,9 +4,11 @@
   "description": "Game Hub - MERN Stack Game Review Platform",
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
+    "build:prod": "node scripts/build-production.js",
     "start": "node backend/index.js",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && npm run dev"
+    "dev:backend": "cd backend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
   },
   "keywords": [
     "mern",
@@ -20,5 +22,8 @@
   "dependencies": {
     "axios": "^1.11.0",
     "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }

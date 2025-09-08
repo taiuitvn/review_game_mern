@@ -24,12 +24,16 @@ const corsOptions = {
       'http://localhost:5174',
       'https://localhost:3000',
       'https://localhost:5173', 
-
       process.env.FRONTEND_URL
     ].filter(Boolean);
     
     // Allow any vercel.app domain
-    if (origin.includes('.vercel.app') || allowedOrigins.includes(origin)) {
+    if (origin && (origin.includes('.vercel.app') || allowedOrigins.includes(origin))) {
+      return callback(null, true);
+    }
+    
+    // For development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
       return callback(null, true);
     }
     
@@ -40,22 +44,38 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-//connect mongoose
+// Connect to MongoDB
+const mongoUri = process.env.MOVIE_REVIEWS_APP_URI || process.env.MONGO_URI;
+if (!mongoUri) {
+  console.error('❌ MongoDB URI is not defined in environment variables');
+  process.exit(1);
+}
+
 mongoose
-  .connect(process.env.MOVIE_REVIEWS_APP_URI, {
+  .connect(mongoUri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
   .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err);
+    process.exit(1);
+  });
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Swagger documentation route
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Health check route
 app.get("/", (req, res) => {
-  res.send("<h1>Game Hub API is running!</h1>");
+  res.json({ 
+    message: "Game Hub API is running!", 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // API routes with /api prefix for Vercel
@@ -66,4 +86,14 @@ app.use("/api/notifications", notify_router);
 app.use("/api/rating", rating_router);
 app.use("/api/upload", router_upload);
 
+// Export the app for Vercel
 export default app;
+
+// Start server only when not in Vercel environment
+if (!process.env.VERCEL) {
+  const port = process.env.PORT || 5000;
+  app.listen(port, () => {
+    console.log(`🚀 Server is running on port ${port}`);
+    console.log(`📄 API Documentation available at http://localhost:${port}/api-docs`);
+  });
+}
