@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Use backend proxy for both development and production
 const baseURL = import.meta.env.PROD 
-  ? 'https://review-game-hub-backend.vercel.app/api/rawg' 
+  ? 'https://review-game-mern-be.vercel.app/api/rawg' 
   : 'http://localhost:8000/api/rawg';
 
 const rawgApi = axios.create({
