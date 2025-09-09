@@ -1,24 +1,65 @@
 // RAWG API integration for game search
 import axios from 'axios';
 
-const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY || '08486d426a474635b2e6aa131e9566f5';
-
-// Use CORS proxy for production, Vite proxy for development
+// Use backend proxy for both development and production
 const baseURL = import.meta.env.PROD 
-  ? 'https://api.allorigins.win/raw?url=https://api.rawg.io/api'
-  : '/rawg-api';
+  ? 'https://review-game-hub-backend.vercel.app/api/rawg' 
+  : 'http://localhost:8000/api/rawg';
 
 const rawgApi = axios.create({
   baseURL,
-  params: {
-    key: RAWG_API_KEY
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
 });
 
-// Add required headers for CORS proxy
-if (import.meta.env.PROD) {
-  rawgApi.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
-}
+// Add request interceptor for error handling and logging
+rawgApi.interceptors.request.use(
+  (config) => {
+    console.log(`Making RAWG API request: ${config.baseURL}${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('RAWG API request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for error handling
+rawgApi.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    console.error('RAWG API Error:', error);
+    
+    if (error.response) {
+      // Server responded with error status
+      const status = error.response.status;
+      const message = error.response.data?.message || error.response.data?.detail || error.message;
+      
+      if (status === 403) {
+        throw new Error('RAWG API access forbidden. Please check API key or try again later.');
+      } else if (status === 429) {
+        throw new Error('Too many requests to RAWG API. Please try again later.');
+      } else if (status >= 500) {
+        throw new Error('RAWG API server error. Please try again later.');
+      } else if (status === 503) {
+        throw new Error('RAWG API service unavailable. Please try again later.');
+      } else {
+        throw new Error(`RAWG API error: ${message}`);
+      }
+    } else if (error.request) {
+      // Network error
+      throw new Error('Network error: Unable to connect to RAWG API. Please check your internet connection.');
+    } else {
+      // Other error
+      throw new Error(`Request error: ${error.message}`);
+    }
+  }
+);
 
 export const searchGames = async (query, page = 1, pageSize = 10) => {
   try {
