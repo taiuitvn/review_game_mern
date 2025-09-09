@@ -5,7 +5,7 @@ const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY || '08486d426a474635b2e6a
 
 // Use CORS proxy for production, Vite proxy for development
 const baseURL = import.meta.env.PROD 
-  ? 'https://cors-anywhere.herokuapp.com/https://api.rawg.io/api' 
+  ? 'https://api.allorigins.win/raw?url=https://api.rawg.io/api'
   : '/rawg-api';
 
 const rawgApi = axios.create({
