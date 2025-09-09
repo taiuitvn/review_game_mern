@@ -4,6 +4,7 @@ import { getReviewById , commentOnReview, likeReview, deleteComment, incrementPo
 import { useAuth } from '../hooks';
 import { useNotification } from '../contexts/NotificationContext';
 import RatingComponent from '../components/reviews/RatingComponent';
+import { Popover } from 'react-tiny-popover';
 import { FaBookmark, FaRegBookmark, FaHeart, FaShare, FaArrowLeft, FaThumbsUp, FaClock, FaEye, FaComments, FaGamepad, FaCalendarAlt, FaUser, FaEdit, FaTrashAlt, FaEllipsisV } from 'react-icons/fa';
 import Comment from '../components/reviews/Comment';
 import SuggestedReviews from '../components/reviews/SuggestedReviews';
@@ -23,15 +24,17 @@ const ReviewDetailPage = () => {
   const [likesCount, setLikesCount] = useState(0);
   const [savesCount, setSavesCount] = useState(0);
   const [isLiking, setIsLiking] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteCommentModalOpen, setIsDeleteCommentModalOpen] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState(null);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
 
   useEffect(() => {
     const fetchReview = async () => {
       try {
         console.log('Fetching review with ID:', id);
-        
         // Check if ID is valid format (24 characters, hex)
         if (!id || !id.match(/^[0-9a-fA-F]{24}$/)) {
           console.error('Invalid review ID format:', id);
@@ -73,51 +76,11 @@ const ReviewDetailPage = () => {
           };
         }
         
-        // Map comment authors properly
-        if (reviewData?.comments && Array.isArray(reviewData.comments)) {
-          // First, map all comments to ensure proper structure
-          const mappedComments = reviewData.comments.map(comment => {
-            const mappedComment = {
-              ...comment,
-              _id: comment._id || comment.id, // Ensure _id exists
-              authorId: comment.authorId, // Preserve original authorId
-              author: comment.authorId ? {
-                id: comment.authorId._id,
-                name: comment.authorId.username,
-                avatar: comment.authorId.avatarUrl || 'https://via.placeholder.com/150',
-                isVerified: comment.authorId.isVerified || false
-              } : null,
-              text: comment.content || comment.text // Handle both content and text fields
-            };
-            
-            // Debug log each comment mapping
-            console.log('Mapping comment:', {
-              original: comment,
-              mapped: mappedComment,
-              hasValidId: !!(mappedComment._id)
-            });
-            
-            return mappedComment;
-          });
-          
-          // Then, structure comments with replies
-          const topLevelComments = mappedComments.filter(comment => !comment.parentCommentId);
-          const replyComments = mappedComments.filter(comment => comment.parentCommentId);
-          
-          // Attach replies to their parent comments
-          const commentsWithReplies = topLevelComments.map(comment => {
-            const replies = replyComments.filter(reply => reply.parentCommentId === comment._id);
-            return {
-              ...comment,
-              replies: replies.length > 0 ? replies : undefined
-            };
-          });
-          
-          reviewData.comments = commentsWithReplies;
-        }
+        // Comment processing is now handled by the backend, so we can remove the frontend logic
+        // that was causing the nested structure to be flattened.
 
         setReview(reviewData);
-        await fetchAndSetComments(id);
+
       } catch (error) {
         console.error("Failed to fetch review:", error);
         if (error.response?.status === 404) {
@@ -186,6 +149,13 @@ const ReviewDetailPage = () => {
         const userHasLiked = review.likes.includes(user._id || user.id);
         setIsLiked(userHasLiked);
       }
+      
+      // Update save status based on current user
+      if (user && review.savedBy) {
+        const userHasSaved = review.savedBy.includes(user._id || user.id);
+        // We don't directly set a saved state here since it's managed by the Auth context
+        // But we ensure the counts are correct
+      }
     }
   }, [user, review]);
 
@@ -223,20 +193,7 @@ const ReviewDetailPage = () => {
     }
   }, [review?._id]); // Only depend on review._id to prevent multiple calls
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showMoreMenu && !event.target.closest('.more-menu-container')) {
-        setShowMoreMenu(false);
-        setShowDeleteConfirm(false);
-      }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showMoreMenu]);
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
@@ -255,31 +212,47 @@ const ReviewDetailPage = () => {
           throw new Error('Invalid response from server');
         }
         
-        // Map the comment data to expected format
+        // Map the comment data to expected format that matches backend structure
+        // This should match the structure returned by getCommentByPostId in the backend
         const mappedComment = {
           _id: newCommentData._id,
-          ...newCommentData,
-          authorId: newCommentData.authorId || (user._id || user.id), // Preserve authorId
-          author: newCommentData.authorId ? {
-            id: newCommentData.authorId._id,
-            name: newCommentData.authorId.username,
-            avatar: newCommentData.authorId.avatarUrl || 'https://via.placeholder.com/150',
-            isVerified: newCommentData.authorId.isVerified || false
-          } : {
-            id: user._id || user.id,
-            name: user.username || user.name,
-            avatar: user.avatarUrl || user.avatar || 'https://via.placeholder.com/150',
-            isVerified: user.isVerified || false
-          },
+          content: newCommentData.content || newCommentData.text || comment,
           text: newCommentData.content || newCommentData.text || comment,
+          authorId: newCommentData.authorId ? {
+            _id: newCommentData.authorId._id || newCommentData.authorId,
+            username: newCommentData.authorId.username || (user?.username || user?.name),
+            avatarUrl: newCommentData.authorId.avatarUrl || user?.avatarUrl || user?.avatar || 'https://via.placeholder.com/150',
+            isVerified: newCommentData.authorId.isVerified || user?.isVerified || false
+          } : {
+            _id: user?._id || user?.id,
+            username: user?.username || user?.name,
+            avatarUrl: user?.avatarUrl || user?.avatar || 'https://via.placeholder.com/150',
+            isVerified: user?.isVerified || false
+          },
+          author: newCommentData.authorId ? {
+            _id: newCommentData.authorId._id || newCommentData.authorId,
+            username: newCommentData.authorId.username || (user?.username || user?.name),
+            avatarUrl: newCommentData.authorId.avatarUrl || user?.avatarUrl || user?.avatar || 'https://via.placeholder.com/150',
+            isVerified: newCommentData.authorId.isVerified || user?.isVerified || false
+          } : {
+            _id: user?._id || user?.id,
+            username: user?.username || user?.name,
+            avatarUrl: user?.avatarUrl || user?.avatar || 'https://via.placeholder.com/150',
+            isVerified: user?.isVerified || false
+          },
           likes: newCommentData.likes || [],
           dislikes: newCommentData.dislikes || [],
-          createdAt: newCommentData.createdAt || new Date().toISOString()
+          createdAt: newCommentData.createdAt || new Date().toISOString(),
+          updatedAt: newCommentData.updatedAt || new Date().toISOString(),
+          // Ensure replies array is initialized as empty for new comments
+          replies: []
         };
         
         console.log('Mapped comment:', mappedComment);
         
         setReview(prevReview => {
+          if (!prevReview) return prevReview;
+          
           const updatedReview = {
             ...prevReview,
             comments: [mappedComment, ...(prevReview.comments || [])]
@@ -311,79 +284,134 @@ const ReviewDetailPage = () => {
   };
 
   const handleCommentUpdate = (commentId, updatedComment) => {
-    setReview(prevReview => ({
-      ...prevReview,
-      comments: prevReview.comments.map(c =>
-        c._id === commentId
-          ? {
-              ...c,
+    setReview(prevReview => {
+      if (!prevReview) return prevReview;
+      
+      return {
+        ...prevReview,
+        comments: prevReview.comments.map(comment => {
+          // Check if this is the comment being updated
+          if (comment._id === commentId) {
+            return {
+              ...comment,
               ...updatedComment,
-              author: updatedComment.authorId ? {
-                id: updatedComment.authorId._id,
-                name: updatedComment.authorId.username,
-                avatar: updatedComment.authorId.avatarUrl || 'https://via.placeholder.com/150',
-                isVerified: updatedComment.authorId.isVerified || false
-              } : c.author,
+              content: updatedComment.content || updatedComment.text,
               text: updatedComment.content || updatedComment.text,
+              author: updatedComment.authorId ? {
+                _id: updatedComment.authorId._id || updatedComment.authorId,
+                username: updatedComment.authorId.username,
+                avatarUrl: updatedComment.authorId.avatarUrl || 'https://via.placeholder.com/150',
+                isVerified: updatedComment.authorId.isVerified || false
+              } : comment.author,
               isEdited: true
-            }
-          : c
-      )
-    }));
+            };
+          }
+          
+          // Check if any of this comment's replies need to be updated
+          if (comment.replies) {
+            const updatedReplies = comment.replies.map(reply => {
+              if (reply._id === commentId) {
+                return {
+                  ...reply,
+                  ...updatedComment,
+                  content: updatedComment.content || updatedComment.text,
+                  text: updatedComment.content || updatedComment.text,
+                  author: updatedComment.authorId ? {
+                    _id: updatedComment.authorId._id || updatedComment.authorId,
+                    username: updatedComment.authorId.username,
+                    avatarUrl: updatedComment.authorId.avatarUrl || 'https://via.placeholder.com/150',
+                    isVerified: updatedComment.authorId.isVerified || false
+                  } : reply.author,
+                  isEdited: true
+                };
+              }
+              return reply;
+            });
+            
+            return {
+              ...comment,
+              replies: updatedReplies
+            };
+          }
+          
+          return comment;
+        })
+      };
+    });
   };
 
-  const handleCommentDelete = async (commentId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bình luận này?')) return;
+  const handleCommentDelete = (commentId) => {
+    setCommentToDelete(commentId);
+    setIsDeleteCommentModalOpen(true);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
     
+    setIsDeletingComment(true);
     try {
-      await deleteComment(commentId);
+      await deleteComment(commentToDelete);
       
-      // Reload comments from server to get updated data
-      await fetchAndSetComments(id);
+      // Update the UI immediately without reloading
+      setReview(prevReview => {
+        if (!prevReview) return prevReview;
+        
+        // Remove the comment from the comments array
+        const updatedComments = prevReview.comments.filter(comment => {
+          // Check if this is the comment being deleted
+          if (comment._id === commentToDelete) {
+            return false;
+          }
+          
+          // Check if this is a reply to the deleted comment
+          if (comment.parentCommentId === commentToDelete) {
+            return false;
+          }
+          
+          // Check if any of this comment's replies match the deleted comment
+          if (comment.replies) {
+            const filteredReplies = comment.replies.filter(reply => reply._id !== commentToDelete);
+            // Update the comment with filtered replies
+            comment.replies = filteredReplies;
+          }
+          
+          return true;
+        });
+        
+        return {
+          ...prevReview,
+          comments: updatedComments
+        };
+      });
       
       showNotification('Bình luận đã được xóa thành công.', 'success');
     } catch (error) {
       console.error('Error deleting comment:', error);
       showNotification('Không thể xóa bình luận. Vui lòng thử lại.', 'error');
+    } finally {
+      setIsDeletingComment(false);
+      setIsDeleteCommentModalOpen(false);
+      setCommentToDelete(null);
     }
   };
 
   // Function to fetch and set comments
   const fetchAndSetComments = async (postId) => {
     try {
+      console.log('Fetching comments for post:', postId || id);
       const commentsResponse = await getCommentsByPostId(postId || id);
       const commentsData = commentsResponse?.data || commentsResponse;
       
+      console.log('Comments data received from API:', commentsData);
+      
       if (Array.isArray(commentsData)) {
-        // First, map all comments to ensure proper structure
-        const mappedComments = commentsData.map(comment => ({
-          ...comment,
-          _id: comment._id || comment.id,
-          author: comment.authorId ? {
-            id: comment.authorId._id,
-            name: comment.authorId.username,
-            avatar: comment.authorId.avatarUrl || 'https://via.placeholder.com/150',
-            isVerified: comment.authorId.isVerified || false
-          } : null,
-          text: comment.content || comment.text
-        }));
-        
-        // Then, structure comments with replies
-        const topLevelComments = mappedComments.filter(comment => !comment.parentCommentId);
-        const replyComments = mappedComments.filter(comment => comment.parentCommentId);
-        
-        // Attach replies to their parent comments
-        const commentsWithReplies = topLevelComments.map(comment => {
-          const replies = replyComments.filter(reply => reply.parentCommentId === comment._id);
-          return {
-            ...comment,
-            replies: replies.length > 0 ? replies : undefined
-          };
-        });
+        // The backend now returns a perfectly nested structure.
+        // We can simplify the frontend logic and just set the comments.
+        console.log('Final structured comments with replies from backend:', commentsData);
         
         setReview(prevReview => ({
           ...prevReview,
-          comments: commentsWithReplies
+          comments: commentsData
         }));
       }
     } catch (error) {
@@ -401,61 +429,23 @@ const ReviewDetailPage = () => {
         showNotification('Dữ liệu trả lời không hợp lệ.', 'error');
         return;
       }
+      
+      // Đảm bảo commentId là chuỗi
+      const parentCommentId = commentId.toString();
+      console.log('Converted parentCommentId:', parentCommentId);
 
       // Call API to create reply
-      const response = await replyToComment(id, commentId, replyText.trim());
+      const response = await replyToComment(id, parentCommentId, replyText.trim());
       console.log('Reply response:', response);
       
-      // The response should be the new reply comment with parentCommentId
-      const newReply = response?.data || response;
-      
-      // Map the reply data to expected format
-      const mappedReply = {
-        _id: newReply._id,
-        content: newReply.content,
-        text: newReply.content, // Add both for compatibility
-        authorId: newReply.authorId,
-        author: newReply.authorId ? {
-          id: newReply.authorId._id,
-          name: newReply.authorId.username,
-          avatar: newReply.authorId.avatarUrl || 'https://via.placeholder.com/150',
-          isVerified: newReply.authorId.isVerified || false
-        } : {
-          id: user._id || user.id,
-          name: user.username || user.name,
-          avatar: user.avatarUrl || user.avatar || 'https://via.placeholder.com/150',
-          isVerified: user.isVerified || false
-        },
-        likes: newReply.likes || [],
-        dislikes: newReply.dislikes || [],
-        createdAt: newReply.createdAt || new Date().toISOString(),
-        parentCommentId: newReply.parentCommentId
-      };
-      
-      console.log('Mapped reply:', mappedReply);
-      
-      // Update the review state to include the new reply
-      setReview(prevReview => {
-        if (!prevReview) return prevReview;
-        
-        return {
-          ...prevReview,
-          comments: prevReview.comments.map(comment =>
-            comment._id === commentId
-              ? { 
-                  ...comment, 
-                  replies: [...(comment.replies || []), mappedReply] 
-                }
-              : comment
-          )
-        };
-      });
-
       // Show success notification
       showNotification('Trả lời của bạn đã được đăng.', 'success');
-
-      // Refresh comments to ensure consistency
-      await fetchAndSetComments(id);
+      
+      // Thêm delay trước khi fetch lại comments để đảm bảo server đã xử lý xong
+      setTimeout(async () => {
+        console.log('Fetching updated comments after reply');
+        await fetchAndSetComments(id);
+      }, 1000); // Tăng thời gian delay lên 1 giây
     } catch (error) {
       console.error('Failed to reply to comment:', error);
       showNotification('Không thể gửi trả lời. Vui lòng thử lại.', 'error');
@@ -469,16 +459,50 @@ const ReviewDetailPage = () => {
     
     try {
       // This will update the user context properly
-      await savePost(id);
+      const response = await savePost(id);
       
       // Update the saves count for immediate UI feedback
-      setSavesCount(prevCount => wasSaved ? prevCount - 1 : prevCount + 1);
+      // Get the updated saved status after the API call
+      const isNowSaved = !wasSaved; // Since savePost toggles the state
+      
+      // Update saves count based on API response
+      if (response && typeof response === 'object' && response.hasOwnProperty('savedByCount')) {
+        // Use the count from the backend response
+        setSavesCount(response.savedByCount);
+        
+        // Also update the review object to reflect the new save status
+        setReview(prevReview => {
+          if (!prevReview) return prevReview;
+          
+          // Update the savedBy array in the review object
+          let updatedSavedBy = [...(prevReview.savedBy || [])];
+          const currentUserId = user._id || user.id;
+          
+          if (isNowSaved) {
+            // Add user to savedBy array if not already there
+            if (!updatedSavedBy.includes(currentUserId)) {
+              updatedSavedBy.push(currentUserId);
+            }
+          } else {
+            // Remove user from savedBy array
+            updatedSavedBy = updatedSavedBy.filter(id => id !== currentUserId);
+          }
+          
+          return {
+            ...prevReview,
+            savedBy: updatedSavedBy
+          };
+        });
+      } else {
+        // Fallback to local calculation
+        setSavesCount(prevCount => isNowSaved ? prevCount + 1 : prevCount - 1);
+      }
       
       showNotification(
-        wasSaved 
-          ? 'Bài viết đã được bỏ khỏi danh sách đã lưu.' 
-          : 'Bài viết đã được thêm vào danh sách đã lưu.', 
-        wasSaved ? 'info' : 'success'
+        isNowSaved 
+          ? 'Bài viết đã được thêm vào danh sách đã lưu.' 
+          : 'Bài viết đã được bỏ khỏi danh sách đã lưu.', 
+        isNowSaved ? 'success' : 'info'
       );
     } catch (error) {
       console.error('Failed to toggle save:', error);
@@ -490,11 +514,14 @@ const ReviewDetailPage = () => {
     if (!user || isLiking) return;
 
     setIsLiking(true);
+    const previousLikedState = isLiked;
+    const previousLikesCount = likesCount;
+
     try {
+      // Optimistically update UI
       const newIsLiked = !isLiked;
       const newLikesCount = newIsLiked ? likesCount + 1 : likesCount - 1;
 
-      // Update local state immediately for better UX
       setIsLiked(newIsLiked);
       setLikesCount(newLikesCount);
 
@@ -503,10 +530,53 @@ const ReviewDetailPage = () => {
       console.log('Like response:', response);
 
       // Update counts based on response
-      if (response && typeof response === 'object' && response.hasOwnProperty('likesCount')) {
-        // New API response format
-        setLikesCount(response.likesCount || 0);
-        setIsLiked(response.isLiked || false);
+      if (response && typeof response === 'object') {
+        // Handle both possible response formats
+        if (response.hasOwnProperty('likesCount')) {
+          // New API response format
+          setLikesCount(response.likesCount || 0);
+          setIsLiked(response.isLiked || false);
+          
+          // Also update the review object to reflect the new like status
+          setReview(prevReview => {
+            if (!prevReview) return prevReview;
+            
+            // Update the likes array in the review object
+            let updatedLikes = [...(prevReview.likes || [])];
+            const currentUserId = user._id || user.id;
+            
+            if (response.isLiked) {
+              // Add user to likes array if not already there
+              if (!updatedLikes.includes(currentUserId)) {
+                updatedLikes.push(currentUserId);
+              }
+            } else {
+              // Remove user from likes array
+              updatedLikes = updatedLikes.filter(id => id !== currentUserId);
+            }
+            
+            return {
+              ...prevReview,
+              likes: updatedLikes
+            };
+          });
+        } else if (response.hasOwnProperty('likes')) {
+          // Direct post data response
+          const updatedLikes = response.likes || [];
+          setLikesCount(updatedLikes.length);
+          // Check if current user is in the likes array
+          const userHasLiked = updatedLikes.includes(user._id || user.id);
+          setIsLiked(userHasLiked);
+          
+          // Also update the review object
+          setReview(prevReview => {
+            if (!prevReview) return prevReview;
+            return {
+              ...prevReview,
+              likes: updatedLikes
+            };
+          });
+        }
       }
 
       showNotification(
@@ -514,11 +584,12 @@ const ReviewDetailPage = () => {
         newIsLiked ? 'success' : 'info'
       );
 
-    } catch {
+    } catch (error) {
       // Revert on error
-      setIsLiked(!isLiked);
-      setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
+      setIsLiked(previousLikedState);
+      setLikesCount(previousLikesCount);
 
+      console.error('Failed to toggle like:', error);
       showNotification('Không thể thực hiện hành động này. Vui lòng thử lại.', 'error');
     } finally {
       setIsLiking(false);
@@ -552,23 +623,17 @@ const ReviewDetailPage = () => {
   };
 
   const handleDeleteReview = async () => {
-    if (!showDeleteConfirm) {
-      setShowDeleteConfirm(true);
-      return;
-    }
-
     setIsDeleting(true);
     try {
       await deleteReview(id);
       showNotification('Bài review của bạn đã được xóa thành công.', 'success');
-      // Navigate to home page after successful deletion
       navigate('/');
     } catch (error) {
       console.error('Error deleting review:', error);
       showNotification(error.response?.data?.message || 'Không thể xóa bài viết. Vui lòng thử lại.', 'error');
-      setShowDeleteConfirm(false);
     } finally {
       setIsDeleting(false);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -805,21 +870,17 @@ const ReviewDetailPage = () => {
 
             {/* Owner Actions */}
             {isReviewOwner() && (
-              <div className="relative more-menu-container">
-                <button
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-gray-100 text-gray-600 transition-all"
-                  title="Tùy chọn"
-                >
-                  <FaEllipsisV />
-                </button>
-                
-                {showMoreMenu && (
-                  <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-10">
+              <Popover
+                isOpen={isMoreMenuOpen}
+                position={['bottom', 'right']}
+                padding={10}
+                onClickOutside={() => setIsMoreMenuOpen(false)}
+                content={(
+                  <div className="bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-10">
                     <button
                       onClick={() => {
                         handleEditReview();
-                        setShowMoreMenu(false);
+                        setIsMoreMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 hover:text-indigo-600 transition-colors"
                     >
@@ -827,40 +888,27 @@ const ReviewDetailPage = () => {
                       Chỉnh sửa
                     </button>
                     
-                    {!showDeleteConfirm ? (
-                      <button
-                        onClick={() => {
-                          setShowDeleteConfirm(true);
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors"
-                      >
-                        <FaTrashAlt className="text-sm" />
-                        Xóa bài viết
-                      </button>
-                    ) : (
-                      <div className="px-4 py-2 border-t border-gray-100">
-                        <p className="text-sm text-gray-600 mb-2">Xác nhận xóa?</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleDeleteReview}
-                            disabled={isDeleting}
-                            className="flex-1 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50 transition-colors"
-                          >
-                            {isDeleting ? 'Xóa...' : 'Xóa'}
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(false)}
-                            className="flex-1 bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
-                          >
-                            Hủy
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => {
+                        setIsDeleteModalOpen(true);
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors"
+                    >
+                      <FaTrashAlt className="text-sm" />
+                      Xóa bài viết
+                    </button>
                   </div>
                 )}
-              </div>
+              >
+                <button
+                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-gray-100 text-gray-600 transition-all"
+                  title="Tùy chọn"
+                >
+                  <FaEllipsisV />
+                </button>
+              </Popover>
             )}
           </div>
 
@@ -973,13 +1021,15 @@ const ReviewDetailPage = () => {
         <div className="space-y-6">
           {safeReview.comments && safeReview.comments.length > 0 ? (
             safeReview.comments
-              .filter(comment => !comment.parentCommentId) // Only show top-level comments
               .map((c, index) => {
                 console.log(`Rendering comment ${index}:`, {
                   commentObject: c,
                   hasId: !!(c._id || c.id),
                   id: c._id || c.id,
-                  key: c._id
+                  key: c._id,
+                  hasReplies: !!(c.replies && c.replies.length),
+                  repliesCount: c.replies ? c.replies.length : 0,
+                  replies: c.replies
                 });
                 
                 return (
@@ -1082,6 +1132,71 @@ const ReviewDetailPage = () => {
 
         </div>
       </div>
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-8 shadow-xl max-w-sm w-full">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Xác nhận xóa</h3>
+                <p className="text-gray-600 mb-6">Bạn có chắc chắn muốn xóa bài review này không? Hành động này không thể hoàn tác.</p>
+                <div className="flex justify-end gap-4">
+                    <button
+                        onClick={() => setIsDeleteModalOpen(false)}
+                        className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+                        disabled={isDeleting}
+                    >
+                        Hủy
+                    </button>
+                    <button
+                        onClick={handleDeleteReview}
+                        disabled={isDeleting}
+                        className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                    >
+                        {isDeleting ? (
+                            <>
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                Đang xóa...
+                            </>
+                        ) : (
+                            'Xóa'
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )}
+    {isDeleteCommentModalOpen && (
+        <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-8 shadow-xl max-w-sm w-full">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Xác nhận xóa bình luận</h3>
+                <p className="text-gray-600 mb-6">Bạn có chắc chắn muốn xóa bình luận này không? Hành động này không thể hoàn tác.</p>
+                <div className="flex justify-end gap-4">
+                    <button
+                        onClick={() => {
+                            setIsDeleteCommentModalOpen(false);
+                            setCommentToDelete(null);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+                        disabled={isDeletingComment}
+                    >
+                        Hủy
+                    </button>
+                    <button
+                        onClick={confirmDeleteComment}
+                        disabled={isDeletingComment}
+                        className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                    >
+                        {isDeletingComment ? (
+                            <>
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                Đang xóa...
+                            </>
+                        ) : (
+                            'Xóa'
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )}
     </div>
   );
 };

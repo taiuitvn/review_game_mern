@@ -124,9 +124,8 @@ const EditReviewPage = () => {
         });
     };
 
-    // Load existing review data
     useEffect(() => {
-        const loadReview = async () => {
+        const loadInitialData = async () => {
             if (!isAuthenticated) {
                 showWarning('Bạn cần đăng nhập để chỉnh sửa review');
                 navigate('/login');
@@ -141,8 +140,19 @@ const EditReviewPage = () => {
 
             try {
                 setIsLoading(true);
-                const response = await getReviewById(id);
-                const reviewData = response?.data?.data || response?.data || response;
+
+                const [genresResponse, platformsResponse, reviewResponse] = await Promise.all([
+                    getGenres(),
+                    getPlatforms(),
+                    getReviewById(id)
+                ]);
+
+                const availableGenresData = genresResponse.data.results || [];
+                const availablePlatformsData = platformsResponse.data.results || [];
+                setAvailableGenres(availableGenresData);
+                setAvailablePlatforms(availablePlatformsData);
+
+                const reviewData = reviewResponse?.data?.data || reviewResponse?.data || reviewResponse;
 
                 if (!reviewData) {
                     showError('Không tìm thấy review');
@@ -150,7 +160,6 @@ const EditReviewPage = () => {
                     return;
                 }
 
-                // Check ownership
                 const currentUserId = user?._id || user?.id;
                 const reviewAuthorId = reviewData.authorId?._id || reviewData.authorId;
                 
@@ -160,12 +169,10 @@ const EditReviewPage = () => {
                     return;
                 }
 
-                // Populate form fields
                 setTitle(reviewData.title || '');
                 setRating(reviewData.rating || 0);
                 setTags(reviewData.tags || []);
                 
-                // Set selected game data
                 if (reviewData.gameName || reviewData.gameId) {
                     setSelectedGame({
                         id: reviewData.gameId,
@@ -174,25 +181,27 @@ const EditReviewPage = () => {
                     });
                 }
 
-                // Set platforms and genres
-                setSelectedPlatforms(reviewData.platforms || []);
-                setSelectedGenres(reviewData.genres || []);
+                const platformNames = reviewData.platforms || [];
+                const genreNames = reviewData.genres || [];
 
-                // Store content to be set later when editor is ready
+                const selectedPlatformObjects = availablePlatformsData.filter(p => platformNames.includes(p.name));
+                const selectedGenreObjects = availableGenresData.filter(g => genreNames.includes(g.name));
+
+                setSelectedPlatforms(selectedPlatformObjects);
+                setSelectedGenres(selectedGenreObjects);
+
                 if (reviewData.content) {
-                    // Set content immediately if editor is ready
                     if (editor) {
                         editor.commands.setContent(reviewData.content);
                     }
-                    // Also store in a ref for later use
                     contentToLoad.current = reviewData.content;
                 }
 
                 showInfo('Đã tải dữ liệu review để chỉnh sửa');
                 
             } catch (error) {
-                console.error('Error loading review:', error);
-                showError('Không thể tải dữ liệu review');
+                console.error('Error loading initial data:', error);
+                showError('Không thể tải dữ liệu để chỉnh sửa review');
                 navigate('/');
             } finally {
                 setIsLoading(false);
@@ -201,28 +210,9 @@ const EditReviewPage = () => {
 
         if (id && editor && !dataLoaded.current) {
             dataLoaded.current = true;
-            loadReview();
+            loadInitialData();
         }
-    }, [id, editor, isAuthenticated, user, navigate]); // Removed notification functions from dependencies
-
-    // Load available genres and platforms
-    useEffect(() => {
-        const loadGenresAndPlatforms = async () => {
-            try {
-                const [genresResponse, platformsResponse] = await Promise.all([
-                    getGenres(),
-                    getPlatforms()
-                ]);
-                
-                setAvailableGenres(genresResponse.data.results || []);
-                setAvailablePlatforms(platformsResponse.data.results || []);
-            } catch (error) {
-                console.error('Error loading genres and platforms:', error);
-            }
-        };
-
-        loadGenresAndPlatforms();
-    }, []);
+    }, [id, editor, isAuthenticated, user, navigate, showWarning, showError, showInfo]);
 
     // Set editor content when editor is ready
     useEffect(() => {
@@ -353,15 +343,11 @@ const EditReviewPage = () => {
                 gameId: selectedGame?.id,
                 gameName: selectedGame?.name,
                 gameImage: selectedGame?.background_image,
-                platforms: selectedPlatforms,
-                genres: selectedGenres,
+                platforms: selectedPlatforms.map(p => p.name),
+                genres: selectedGenres.map(g => g.name),
             };
 
-            console.log('Updating review with platform data:', {
-                platforms: gamePlatforms,
-                genres: gameGenres,
-                selectedGame: selectedGame
-            });
+ 
 
             const response = await updateReview(id, updateData);
             

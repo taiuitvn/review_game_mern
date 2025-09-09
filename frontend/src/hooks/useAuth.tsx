@@ -142,7 +142,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     try {
       const response: any = await updateUser(user._id, updateData);
-      const updatedUser = response.data.user;
+      const updatedUser = response.user;
       
       // Update stored profile
       const storedProfile = localStorage.getItem('profile');
@@ -154,6 +154,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       // Update user state
       setUser(updatedUser as DbUser);
+      
+      window.dispatchEvent(new CustomEvent('profileUpdated', { detail: updatedUser }));
       
       return { success: true, user: updatedUser };
     } catch (error: any) {
@@ -219,7 +221,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const response = await apiSavePost(postId);
       
       // Use the updated savedPosts array from server response
-      const updatedSavedPosts = response.userSavedPosts || [];
+      let updatedSavedPosts: string[] = [];
+      
+      // Handle different response formats
+      if (response && typeof response === 'object') {
+        if (Array.isArray(response)) {
+          // Direct array response
+          updatedSavedPosts = response;
+        } else if (response.hasOwnProperty('savedPosts')) {
+          // Object with savedPosts property
+          updatedSavedPosts = Array.isArray(response.savedPosts) ? response.savedPosts : [];
+        } else if (response.hasOwnProperty('userSavedPosts')) {
+          // Object with userSavedPosts property
+          updatedSavedPosts = Array.isArray(response.userSavedPosts) ? response.userSavedPosts : [];
+        } else if (response.hasOwnProperty('data') && response.data.hasOwnProperty('savedPosts')) {
+          // Nested data object with savedPosts property
+          updatedSavedPosts = Array.isArray(response.data.savedPosts) ? response.data.savedPosts : [];
+        }
+      }
       
       const updatedUser: DbUser = {
         ...user,
@@ -258,9 +277,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const response = await apiLikePost(postId);
       console.log('Like post response:', response);
-      
-      // The response contains the updated post data
-      // We could update local state here if needed, but for now we'll just rely on the UI state
+  
       return response;
     } catch (error) {
       console.error('Failed to like post:', error);
@@ -269,8 +286,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const isPostLiked = (postId: string): boolean => {
-    // This would require fetching the post data to check if it's liked
-    // For now, we'll rely on component-level state management
     return false;
   };
 

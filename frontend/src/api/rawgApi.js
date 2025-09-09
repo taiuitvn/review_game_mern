@@ -1,17 +1,25 @@
 // RAWG API integration for game search
 import axios from 'axios';
 
-const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY || 'https://api.rawg.io/api';
+const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY || '08486d426a474635b2e6aa131e9566f5';
 
-// Create axios instance for RAWG API (using proxy)
+// Use CORS proxy for production, Vite proxy for development
+const baseURL = import.meta.env.PROD 
+  ? 'https://cors-anywhere.herokuapp.com/https://api.rawg.io/api' 
+  : '/rawg-api';
+
 const rawgApi = axios.create({
-  baseURL: '/rawg-api',
+  baseURL,
   params: {
     key: RAWG_API_KEY
   }
 });
 
-// Search games by name
+// Add required headers for CORS proxy
+if (import.meta.env.PROD) {
+  rawgApi.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+}
+
 export const searchGames = async (query, page = 1, pageSize = 10) => {
   try {
     const response = await rawgApi.get('/games', {
