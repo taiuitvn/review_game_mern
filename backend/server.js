@@ -6,6 +6,7 @@ import comments_router from "./routers/comment.router.js";
 import notify_router from "./routers/notifications.router.js";
 import router_upload from "./routers/upload.router.js";
 import rating_router from "./routers/rating.router.js";
+import rawg_router from "./routers/rawg.router.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { swaggerUi, swaggerSpec } from "./swagger.js";
@@ -86,6 +87,7 @@ app.use("/api/comments", comments_router);
 app.use("/api/notifications", notify_router);
 app.use("/api/rating", rating_router);
 app.use("/api/upload", router_upload);
+app.use("/api/rawg", rawg_router);
 
 // Export the app for Vercel
 export default app;
