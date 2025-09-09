@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks'; // Import useAuth to update user context
 import { FaTimes, FaSave, FaUpload } from 'react-icons/fa';
 
 const EditProfileModal = ({ open, onClose, initial, onSave }) => {
-  const { updateProfile } = useAuth(); // Get updateProfile function from context
+  const { updateProfile, user } = useAuth(); // Get updateProfile function and user from context
   const [formData, setFormData] = useState({
     username: initial?.username || '',
     bio: initial?.bio || '',
@@ -12,6 +12,39 @@ const EditProfileModal = ({ open, onClose, initial, onSave }) => {
   const [loading, setLoading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState(initial?.avatarUrl || '');
   const [selectedFile, setSelectedFile] = useState(null);
+
+  // Update form data when user context changes
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        username: user.username || '',
+        bio: user.bio || '',
+        avatarUrl: user.avatarUrl || ''
+      });
+      setAvatarPreview(user.avatarUrl || '');
+    }
+  }, [user]);
+
+  // Listen for profile updates from other components
+  useEffect(() => {
+    const handleProfileUpdate = (event) => {
+      const updatedUser = event.detail;
+      if (updatedUser) {
+        setFormData({
+          username: updatedUser.username || '',
+          bio: updatedUser.bio || '',
+          avatarUrl: updatedUser.avatarUrl || ''
+        });
+        setAvatarPreview(updatedUser.avatarUrl || '');
+      }
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+    
+    return () => {
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,8 +67,6 @@ const EditProfileModal = ({ open, onClose, initial, onSave }) => {
         ...formData,
         avatarUrl: '' // Clear URL when file is selected
       });
-      
-      // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
         setAvatarPreview(e.target.result);
@@ -48,21 +79,18 @@ const EditProfileModal = ({ open, onClose, initial, onSave }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // If file is selected, upload it first
       let avatarUrl = formData.avatarUrl;
       if (selectedFile) {
-        // Import the upload function
         const { uploadImage } = await import('../../api/users');
         const uploadResult = await uploadImage(selectedFile);
         avatarUrl = uploadResult.url;
       }
       
-      // Save profile with the avatar URL (either from file upload or direct input)
       const updatedData = { ...formData, avatarUrl };
-      const result = await updateProfile(updatedData); // Use updateProfile from context to update user data
+      const result = await updateProfile(updatedData); 
       
       if (result.success) {
-        await onSave(updatedData); // Also call the onSave prop if needed
+        await onSave(updatedData); 
         onClose();
       } else {
         console.error('Error updating profile:', result.error);

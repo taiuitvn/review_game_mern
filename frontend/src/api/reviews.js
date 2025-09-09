@@ -1,4 +1,29 @@
-import api from './index';
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD ? '/api' : 'http://localhost:8000/api');
+
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const profile = localStorage.getItem('profile');
+  if (profile) {
+    try {
+      const parsedProfile = JSON.parse(profile);
+      const token = parsedProfile.token;
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Error parsing profile from localStorage:', error);
+    }
+  }
+  return config;
+});
 
 // Posts/Reviews API functions
 export const getAllPosts = async (page = 1, limit = 10) => {
@@ -98,6 +123,7 @@ export const searchPostsAdvanced = async (query, filters = {}) => {
     const params = new URLSearchParams();
     params.append('q', query);
     
+    // Add optional filters
     if (filters.sortBy) params.append('sortBy', filters.sortBy);
     if (filters.rating && filters.rating !== 'all') params.append('rating', filters.rating);
     if (filters.tags && filters.tags !== 'all') params.append('tags', filters.tags);
@@ -142,6 +168,18 @@ export const commentOnReview = async (postId, content) => {
 export const replyToComment = async (postId, parentCommentId, content) => {
   try {
     console.log('API: Creating reply:', { postId, parentCommentId, content });
+    // Đảm bảo parentCommentId là một chuỗi hợp lệ
+    if (!parentCommentId) {
+      throw new Error('parentCommentId is required');
+    }
+    
+    // Log chi tiết hơn về dữ liệu gửi đi
+    console.log('API: Sending data to server:', JSON.stringify({ 
+      postId, 
+      content, 
+      parentCommentId 
+    }));
+    
     const response = await api.post('/comments', { postId, content, parentCommentId });
     console.log('API: Reply created:', response.data);
     return response.data;
@@ -231,6 +269,7 @@ export const incrementPostViews = async (postId) => {
   }
 };
 
+// Alias for reviews (same as posts)
 export const getAllReviews = getAllPosts;
 export const getReviewById = getPostById;
 export const createReview = createPost;

@@ -131,7 +131,10 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
       const response = await updateComment(commentId, editText.trim());
       
       // Update parent component
-      onUpdate?.(commentId, response.comment);
+      onUpdate?.(commentId, {
+        ...response.comment,
+        text: response.comment.content || response.comment.text || editText.trim()
+      });
       
       setIsEditing(false);
     } catch (error) {
@@ -142,7 +145,7 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
     }
   };
 
-  const handleReplySubmit = (e) => {
+  const handleReplySubmit = async (e) => {
     e.preventDefault();
     if (!replyText.trim()) return;
 
@@ -153,9 +156,26 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
       return;
     }
 
-    onReply?.(commentId, replyText);
-    setReplyText('');
-    setShowReplyForm(false);
+    console.log('Submitting reply:', { commentId, replyText });
+    setIsProcessing(true);
+    
+    try {
+      // Đợi kết quả từ API trước khi cập nhật UI
+      await onReply?.(commentId, replyText);
+      console.log('Reply submitted successfully');
+      setReplyText('');
+      setShowReplyForm(false);
+      
+      // Thêm timeout để đảm bảo UI được cập nhật sau khi server xử lý
+      setTimeout(() => {
+        console.log('Checking if reply was added to comment:', commentId);
+      }, 1000);
+    } catch (error) {
+      console.error('Error submitting reply:', error);
+      alert('Có lỗi xảy ra khi trả lời bình luận. Vui lòng thử lại.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Check if current user owns this comment
@@ -173,6 +193,7 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
     
     // Check multiple possible data structures
     const commentOwnerId = 
+      comment.author?._id ||  // Populated author object
       comment.authorId?._id ||  // Populated authorId object
       comment.authorId ||       // Direct authorId string
       comment.author?.id;       // Author object with id
@@ -187,13 +208,18 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
     <div className="border-l-2 border-gray-200 pl-4">
       <div className="flex gap-4">
         <img
-          src={comment.authorId?.avatarUrl || comment.author?.avatar || 'https://via.placeholder.com/150?text=User'}
-          alt={comment.authorId?.username || comment.author?.name || 'User'}
+          src={comment.author?.avatarUrl || comment.authorId?.avatarUrl || comment.author?.avatar || 'https://via.placeholder.com/150?text=User'}
+          alt={comment.author?.username || comment.authorId?.username || comment.author?.name || 'User'}
           className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+          onError={(e) => {
+            e.target.src = 'https://via.placeholder.com/150?text=User';
+          }}
         />
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <span className="font-semibold text-gray-900">{comment.authorId?.username || comment.author?.name}</span>
+            <span className="font-semibold text-gray-900">
+              {comment.authorId?.username || 'Anonymous'}
+            </span>
             <span className="text-sm text-gray-500">
               {new Date(comment.createdAt).toLocaleDateString('vi-VN')}
             </span>
@@ -234,7 +260,7 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
             </div>
           ) : (
             <p className="text-gray-700 bg-gray-50 rounded-lg p-3 mb-3">
-              {comment.text || comment.content}
+              {comment.text || comment.content || 'No content'}
             </p>
           )}
 
@@ -292,7 +318,7 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
                   <span>Sửa</span>
                 </button>
                 <button
-                  onClick={() => onDelete?.(comment._id)}
+                  onClick={() => onDelete?.(comment._id || comment.id)}
                   className="flex items-center gap-1 px-2 py-1 rounded text-gray-500 hover:bg-gray-100 hover:text-red-600 transition-colors"
                 >
                   <FaTrash size={12} />
@@ -310,12 +336,15 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
                   src={user.avatarUrl || user.avatar || 'https://via.placeholder.com/150?text=User'}
                   alt={user.username || user.name || 'User'}
                   className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                  onError={(e) => {
+                    e.target.src = 'https://via.placeholder.com/150?text=User';
+                  }}
                 />
                 <div className="flex-1">
                   <textarea
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder={`Trả lời ${comment.author?.name}...`}
+                    placeholder={`Trả lời ${comment.author?.username || comment.author?.name || 'người dùng'}...`}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-sm placeholder-gray-600"
                     rows="2"
                   />
@@ -341,18 +370,17 @@ const Comment = ({ comment, onLike, onDislike, onReply, onUpdate, onDelete }) =>
           )}
 
           {/* Nested Replies */}
-          {comment.replies && comment.replies.length > 0 && (
+          {comment.replies && Array.isArray(comment.replies) && comment.replies.length > 0 && (
             <div className="mt-4 space-y-3">
               {comment.replies.map(reply => (
                 <Comment
-                  key={reply._id}
+                  key={reply._id || reply.id}
                   comment={reply}
                   onLike={onLike}
                   onDislike={onDislike}
                   onReply={onReply}
                   onUpdate={onUpdate}
                   onDelete={onDelete}
-                  isReply={true}
                 />
               ))}
             </div>

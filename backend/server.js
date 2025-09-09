@@ -24,7 +24,7 @@ const corsOptions = {
       'http://localhost:5174',
       'https://localhost:3000',
       'https://localhost:5173', 
-      'https://review-game-mern.vercel.app',
+      'https://review-game-hub.vercel.app',
       process.env.FRONTEND_URL
     ].filter(Boolean);
     

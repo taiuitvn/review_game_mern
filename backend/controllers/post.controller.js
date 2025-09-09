@@ -263,18 +263,34 @@ export const getPostById = async (req, res) => {
     // View counting is handled separately via the incrementPostViews endpoint
     // Do not auto-increment views when fetching post data
     
-    // Fetch comments separately
+    // Fetch and build nested comments
     const Comment = (await import('../models/Comment.js')).default;
-    const comments = await Comment.find({ postId: id })
-      .populate('authorId', 'username avatarUrl')
-      .populate({
-        path: 'parentCommentId',
-        populate: {
-          path: 'authorId',
-          select: 'username avatarUrl'
+    const allComments = await Comment.find({ postId: id })
+      .populate('authorId', 'username avatarUrl isVerified')
+      .sort({ createdAt: 'asc' })
+      .lean();
+
+    const commentMap = {};
+    allComments.forEach(comment => {
+      comment.replies = [];
+      commentMap[comment._id.toString()] = comment;
+    });
+
+    const commentTree = [];
+    allComments.forEach(comment => {
+      if (comment.parentCommentId) {
+        const parentComment = commentMap[comment.parentCommentId.toString()];
+        if (parentComment) {
+          parentComment.replies.push(comment);
+        } else {
+          commentTree.push(comment);
         }
-      })
-      .sort({ createdAt: -1 });
+      } else {
+        commentTree.push(comment);
+      }
+    });
+
+    commentTree.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
 
     
@@ -324,7 +340,7 @@ export const getPostById = async (req, res) => {
       title: post.title,
       author: post.authorId?.username,
       hasAuthor: !!post.authorId,
-      commentsCount: comments.length,
+      commentsCount: allComments.length,
       likesCount: post.likes?.length || 0,
       views: post.views,
       authorStats: authorStats ? 'included' : 'none',
@@ -347,7 +363,7 @@ export const getPostById = async (req, res) => {
     // Build enhanced response with author information
     const enhancedPost = {
       ...(post.toObject ? post.toObject() : post),
-      comments,
+      comments: commentTree, // Use the nested comment tree
       authorStats,
       avgRating: Math.round(avgRating),
       totalRatings

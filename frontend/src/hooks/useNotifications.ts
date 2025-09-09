@@ -268,11 +268,11 @@ export const useNotifications = (): UseNotificationsReturn => {
     fetchStats();
   }, [fetchNotifications, fetchStats]);
 
-  // Periodic refresh for unread count (every 30 seconds)
+  // Periodic refresh for unread count (every 10 seconds for better responsiveness)
   useEffect(() => {
     const interval = setInterval(() => {
       updateUnreadCount();
-    }, 30000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [updateUnreadCount]);

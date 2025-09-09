@@ -18,6 +18,7 @@ import GenrePage from '../pages/filters/GenrePage';
 import PlatformPage from '../pages/filters/PlatformPage';
 import Header from '../components/layout/TopBar';
 import Footer from '../components/layout/Footer';
+import ScrollToTop from '../components/common/ScrollToTop';
 
 // Component bảo vệ route cần đăng nhập
 const ProtectedRoute = ({ children }) => {
@@ -49,6 +50,9 @@ const AppRouter = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Scroll to top on route change */}
+      <ScrollToTop />
+      
       {/* Header cho tất cả user */}
       <Header />
       
@@ -83,7 +87,7 @@ const AppRouter = () => {
               <EditReviewPage />
             </ProtectedRoute>
           } />
-                      <Route path="/profile/:userId" element={<ProfilePage />} />
+          <Route path="/profile/:userId" element={<ProfilePage />} />
           
           {/* Routes filter - công khai */}
           <Route path="/genres/:genre" element={<GenrePage />} />

@@ -5,35 +5,48 @@ import { createNotificationHelper } from "./notification.controller.js";
 export const getCommentByPostId = async (req, res) => {
   try {
     const postId = req.params.id;
-    
-    // Get all comments for this post (both top-level and replies)
+    console.log('Fetching comments for post:', postId);
+
     const allComments = await Comment.find({ postId })
-      .populate('authorId', 'username avatarUrl')
-      .sort({ createdAt: -1 });
+      .populate('authorId', 'username avatarUrl isVerified')
+      .sort({ createdAt: 'asc' }) // Sort by oldest first to build the tree correctly
+      .lean(); // Use .lean() for better performance with plain JS objects
+
+    console.log(`Found ${allComments.length} total comments.`);
+
+    const commentMap = {};
     
-    // Separate top-level comments and replies
-    const topLevelComments = allComments.filter(comment => !comment.parentCommentId);
-    const replies = allComments.filter(comment => comment.parentCommentId);
+    // First pass: create a map and initialize replies array
+    allComments.forEach(comment => {
+      comment.replies = [];
+      commentMap[comment._id.toString()] = comment;
+    });
+
+    const commentTree = [];
     
-    // Organize replies under their parent comments
-    const commentsWithReplies = topLevelComments.map(comment => {
-      const commentReplies = replies.filter(reply => 
-        reply.parentCommentId.toString() === comment._id.toString()
-      ).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)); // Replies in ascending order
-      
-      return {
-        ...(comment.toObject ? comment.toObject() : comment),
-        replies: commentReplies
-      };
+    // Second pass: build the tree
+    allComments.forEach(comment => {
+      if (comment.parentCommentId) {
+        const parentComment = commentMap[comment.parentCommentId.toString()];
+        if (parentComment) {
+          // This is a reply, add it to its parent's replies array
+          parentComment.replies.push(comment);
+        } else {
+          // Orphan reply, treat it as a top-level comment
+          commentTree.push(comment);
+        }
+      } else {
+        // This is a top-level comment
+        commentTree.push(comment);
+      }
     });
     
-    console.log('Comments found for post:', postId, {
-      total: allComments.length,
-      topLevel: topLevelComments.length,
-      replies: replies.length
-    });
+    // The tree is built, now sort the top-level comments by newest first for display
+    commentTree.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    console.log(`Returning ${commentTree.length} top-level comments.`);
     
-    res.json(commentsWithReplies);
+    res.json(commentTree);
   } catch (error) {
     console.error('Error fetching comments:', error);
     res.status(400).json({ error: error.message });
@@ -53,14 +66,36 @@ export const createComment = async (req, res) => {
       return res.status(400).json({ error: 'Post ID and content are required' });
     }
     
+    // Validate parentCommentId if provided
+    let finalParentCommentId = null;
+    if (parentCommentId) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(parentCommentId)) {
+          // Check if parent comment exists
+          const parentComment = await Comment.findById(parentCommentId);
+          if (parentComment) {
+            finalParentCommentId = parentCommentId;
+            console.log('Parent comment verified:', parentCommentId);
+          } else {
+            console.error('Parent comment not found in database:', parentCommentId);
+          }
+        } else {
+          console.error('Invalid parent comment ID format:', parentCommentId);
+        }
+      } catch (err) {
+        console.error('Error validating parent comment:', err.message);
+      }
+    }
+    
     const commentData = {
       postId,
       authorId,
       content: content.trim(),
-      parentCommentId: parentCommentId || null // Support for replies
+      parentCommentId: finalParentCommentId // Use validated parent comment ID
     };
     
     console.log('Creating comment:', commentData);
+    console.log('ParentCommentId type:', finalParentCommentId ? typeof finalParentCommentId : 'null');
     
     const newComment = await Comment.create(commentData);
     
@@ -72,7 +107,8 @@ export const createComment = async (req, res) => {
       id: populatedComment._id,
       content: populatedComment.content,
       author: populatedComment.authorId,
-      isReply: !!populatedComment.parentCommentId
+      isReply: !!populatedComment.parentCommentId,
+      parentCommentId: populatedComment.parentCommentId
     });
     
     // Create notifications
@@ -82,9 +118,11 @@ export const createComment = async (req, res) => {
       const post = await Post.findById(postId).populate('authorId', '_id username');
       
       if (post) {
-        if (parentCommentId) {
+        if (finalParentCommentId) {
           // This is a reply - notify the original comment author
-          const parentComment = await Comment.findById(parentCommentId).populate('authorId', '_id username');
+          const parentComment = await Comment.findById(finalParentCommentId).populate('authorId', '_id username');
+          console.log('Parent comment found:', parentComment ? parentComment._id.toString() : 'not found');
+          
           if (parentComment && parentComment.authorId._id.toString() !== authorId) {
             await createNotificationHelper({
               userId: parentComment.authorId._id,
@@ -100,6 +138,8 @@ export const createComment = async (req, res) => {
               }
             });
             console.log('Reply notification created');
+          } else {
+            console.log('No notification needed - user replying to own comment or parent comment not found');
           }
         } else {
           // This is a new comment - notify the post author

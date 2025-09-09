@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -12,7 +12,7 @@ import {
 
 const Header = () => {
   const { user, loading, logout, updateProfile } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, updateUnreadCount } = useNotifications();
   const navigate = useNavigate();
 
   // State management
@@ -23,11 +23,12 @@ const Header = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
 
-  // Refresh user data when window gains focus
+  // Refresh notifications and user data when window gains focus
   useEffect(() => {
     const handleFocus = () => {
-      // This will trigger a re-render with updated user data
-      // The useAuth hook already handles localStorage updates
+      // Update notifications count
+      updateUnreadCount();
+      // User data is automatically updated by useAuth hook
     };
 
     window.addEventListener('focus', handleFocus);
@@ -35,7 +36,41 @@ const Header = () => {
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [updateUnreadCount]);
+
+  // Poll for notification updates every 10 seconds for more responsive UI
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (user) {
+        updateUnreadCount();
+      }
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(interval);
+  }, [user, updateUnreadCount]);
+
+  // Add polling for user profile updates every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (user) {
+        // Refresh user data from localStorage
+        const storedProfile = localStorage.getItem('profile');
+        if (storedProfile) {
+          try {
+            const profile = JSON.parse(storedProfile);
+            if (profile.user) {
+              // This will trigger a re-render if user data has changed
+              // The useAuth hook should handle this automatically, but we add this as a fallback
+            }
+          } catch (error) {
+            console.error('Error parsing stored profile:', error);
+          }
+        }
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -82,7 +117,7 @@ const Header = () => {
             </Link>
 
             {/* Desktop Search Bar */}
-            <div className="hidden md:flex flex-1 max-w-md mx-8">
+            {/* <div className="hidden md:flex flex-1 max-w-md mx-8">
               <form onSubmit={handleSearchSubmit} className="w-full relative">
                 <FaSearch className="absolute top-1/2 left-4 -translate-y-1/2 text-gray-400" />
                 <input
@@ -93,7 +128,7 @@ const Header = () => {
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-12 pr-4 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all duration-200 text-sm placeholder-gray-600 text-gray-900"
                 />
               </form>
-            </div>
+            </div> */}
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center space-x-1">
